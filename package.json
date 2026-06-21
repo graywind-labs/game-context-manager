@@ -9,23 +9,25 @@
   "scripts": {
     "dev": "node scripts/dev.cjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "test": "tsc --noEmit -p tsconfig.test.json",
+    "test": "tsc --noEmit -p tsconfig.test.json && tsx tests/unit/sqliteService.test.ts && tsx tests/unit/workspaceService.test.ts && tsx tests/unit/fileExportService.test.ts && tsx tests/unit/aiProviderService.test.ts",
     "build": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && electron-vite build"
   },
   "dependencies": {
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^5.1.1",
     "@types/node": "^24.10.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.23",
     "electron": "^39.2.7",
     "electron-vite": "^4.0.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.18",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3",
     "vite": "^7.2.7"
   }

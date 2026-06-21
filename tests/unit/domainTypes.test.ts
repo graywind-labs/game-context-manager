@@ -11,7 +11,7 @@ import {
   type ModuleNode,
   type NodeImageLink,
   type WorkspaceConfig
-} from '../../src/shared';
+} from '../../src/shared/index.js';
 
 const createdAt = '2026-06-18T12:00:00+08:00';
 

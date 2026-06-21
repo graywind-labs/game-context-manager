@@ -1,8 +1,17 @@
 import electron from 'electron';
 import { join } from 'node:path';
+import { registerApiIpc } from './ipc/apiIpc.js';
+import { registerContentIpc } from './ipc/contentIpc.js';
+import { registerGameIpc } from './ipc/gameIpc.js';
+import { registerImageIpc } from './ipc/imageIpc.js';
+import { registerModuleIpc } from './ipc/moduleIpc.js';
+import { registerUserIpc } from './ipc/userIpc.js';
+import { registerWorkspaceIpc } from './ipc/workspaceIpc.js';
+import { getDefaultDatabasePath, initializeSqliteService, type SqliteService } from './services/sqliteService.js';
 
 const { app, BrowserWindow } = electron;
 const isDevelopment = Boolean(process.env.ELECTRON_RENDERER_URL);
+let sqliteService: SqliteService | undefined;
 
 function createMainWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -14,7 +23,7 @@ function createMainWindow(): void {
     backgroundColor: '#f8fafc',
     show: false,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false
@@ -33,6 +42,23 @@ function createMainWindow(): void {
 }
 
 void app.whenReady().then(() => {
+  const databasePath = getDefaultDatabasePath(app.getPath('userData'));
+  sqliteService = initializeSqliteService({ databasePath });
+  const verification = sqliteService.verifyRequiredTables();
+
+  if (verification.missingTables.length > 0) {
+    throw new Error(`SQLite initialization missed tables: ${verification.missingTables.join(', ')}`);
+  }
+
+  console.info(`[database] SQLite initialized at ${databasePath}`);
+  registerApiIpc(sqliteService);
+  registerGameIpc(sqliteService);
+  registerContentIpc(sqliteService);
+  registerImageIpc(sqliteService);
+  registerModuleIpc(sqliteService);
+  registerUserIpc(sqliteService);
+  registerWorkspaceIpc(sqliteService);
+
   createMainWindow();
 
   app.on('activate', () => {
@@ -40,6 +66,10 @@ void app.whenReady().then(() => {
       createMainWindow();
     }
   });
+});
+
+app.on('before-quit', () => {
+  sqliteService?.close();
 });
 
 app.on('window-all-closed', () => {

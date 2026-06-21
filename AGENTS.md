@@ -100,6 +100,7 @@ Codex 应逐步把项目演进为以下结构：
   electron-vite.config.ts
   tsconfig.json
   tsconfig.node.json
+  tsconfig.test.json                # 类型级测试配置
   tsconfig.web.json
   tailwind.config.ts
   postcss.config.cjs
@@ -108,6 +109,13 @@ Codex 应逐步把项目演进为以下结构：
     main/                            # Electron 主进程
       index.ts
       ipc/
+        apiIpc.ts                       # API 配置保存、读取和连接测试相关 IPC
+        contentIpc.ts                # 三级内容节点创建/编辑与 @ 图片引用校验相关 IPC
+        gameIpc.ts                   # 游戏主节点创建/编辑相关 IPC
+        imageIpc.ts                  # 图片上传、重命名、图库读取相关 IPC
+        moduleIpc.ts                 # 模块节点创建/编辑/删除与图片关联相关 IPC
+        userIpc.ts                   # 本地用户创建/选择相关 IPC
+        workspaceIpc.ts              # 工作空间创建相关 IPC
       services/
         workspaceService.ts          # 工作区创建、打开、读取
         fileExportService.ts         # MD、manifest、INDEX 等文件生成
@@ -132,13 +140,27 @@ Codex 应逐步把项目演进为以下结构：
         styles/
 
     shared/                          # 前后端共享类型、schema 和工具
+      index.ts
       types/
+        api.ts                        # API 配置与连接测试 IPC 共享类型
+        content.ts                   # 三级内容节点 IPC 共享类型
+        domain.ts                    # 核心领域类型
+        image.ts                     # 图片上传与图库 IPC 共享类型
+        module.ts                    # 模块节点 IPC 共享类型
+        user.ts                      # 本地用户 IPC 共享类型
+        workspace.ts                 # 工作空间创建结果与 IPC 共享类型
       schemas/
       constants/
+        fields.ts                    # 可编辑/不可编辑字段与中英文标签
       utils/
 
   tests/
     unit/
+      aiProviderService.test.ts       # mock AI Provider 与连接测试单元测试
+      domainTypes.test.ts            # 领域类型结构测试
+      fileExportService.test.ts      # game.md、manifest、INDEX 文件生成测试
+      sqliteService.test.ts          # SQLite 迁移与表结构测试
+      workspaceService.test.ts       # 工作空间基础文件结构生成测试
     fixtures/
 
   scripts/
