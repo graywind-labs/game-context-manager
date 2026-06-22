@@ -849,7 +849,7 @@
 
 ## T018 — UI 打磨：类 OpenWebUI + 类 XMind 节点管理
 
-**状态**：TODO
+**状态**：DONE
 
 ### 要做什么
 
@@ -874,13 +874,25 @@
 
 ### 验收结果
 
-空。
+已完成 UI 打磨：
+
+- 左侧节点树改为可点击的层级按钮，支持从树上切换游戏、模块和内容节点，当前查看节点会显示明确状态。
+- 左侧新增快捷操作区，可快速跳转到游戏、图片、模块和内容面板；模块和内容快捷入口会复用现有新建表单状态。
+- 中间工作台新增“推荐路径”流程条，按工作空间、游戏、图片、模块、内容展示完成/当前/待处理状态，方便新用户理解使用路径。
+- 更新中英文文案，去除早期占位说明，改为当前真实 MVP 流程描述。
+- 模块、内容和游戏表单中的关联图片、账号状态、结构字段分组统一为浅底分组样式，层次更清晰。
+- 右侧辅助面板、关联图片、MD 预览和通知样式统一为更稳定的工具面板视觉；通知增加状态色侧边条。
+- 未引入大型设计系统或复杂动画，符合 T018 范围。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；测试中 `node:sqlite` 仍会输出 ExperimentalWarning。
+- `corepack pnpm lint` 未通过：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
 
 ---
 
 ## T019 — 示例工作空间与 Agent 可读性验证
 
-**状态**：TODO
+**状态**：DONE
 
 ### 要做什么
 
@@ -910,13 +922,23 @@
 
 ### 验收结果
 
-空。
+已完成示例工作空间与 Agent 可读性验证：
+
+- 新增 `examples/sample-workspace/game-context/`，包含一个游戏节点 `starfall_workshop`、两个模块节点、两个三级内容节点和两张示例 SVG 图片资源。
+- 示例包含 `manifest.yml`、`games/starfall_workshop/INDEX.md`、`image_catalog.yml`、节点 Markdown 和静态 `AGENTS.md`、`CLAUDE.md`、`USAGE.md`、`README.md`。
+- 新增 `examples/sample-workspace/README.md`，说明 Codex 应先读 `AGENTS.md`、`manifest.yml`、`USAGE.md` 和 `INDEX.md`，Claude Code / WorkBuddy 应先读 `CLAUDE.md` 和 `manifest.yml`。
+- README 已记录 2026-06-22 人工可读性检查：路径完整、Markdown frontmatter 可读、内容节点 `@image_id` 只引用已关联图片、图片资源可直接打开。
+- 新增 `tests/unit/sampleWorkspace.test.ts`，验证示例 manifest、INDEX、节点 frontmatter、图片路径、README 读取说明和 `@image_id` 引用关系。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；测试中 `node:sqlite` 仍会输出 ExperimentalWarning。
+- `corepack pnpm lint` 未通过：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
 
 ---
 
 ## T020 — 打包与 MVP 收尾
 
-**状态**：TODO
+**状态**：DONE
 
 ### 要做什么
 
@@ -944,4 +966,16 @@
 
 ### 验收结果
 
-空。
+已完成 MVP 收尾：
+
+- 补充 `README.md`，覆盖当前 MVP 能力、产品边界、依赖安装、开发启动、生产构建、已构建应用启动、本地数据路径、API/AI 安全、Agent 读取流程、已知限制和未来计划。
+- 在 `package.json` 新增 `start` 脚本，支持 `corepack pnpm build` 后通过 `corepack pnpm start` 启动已构建 Electron 应用。
+- 确认构建命令为 `corepack pnpm build`，当前输出到 `out/main`、`out/preload` 和 `out/renderer`；当前仓库生成可运行 Electron/Vite 产物，不生成签名安装包。
+- 确认本地 SQLite 默认路径为 Electron `app.getPath('userData')/game-context-manager.sqlite3`；本机启动烟测路径为 `C:\Users\JT\AppData\Roaming\game-context-manager\game-context-manager.sqlite3`。
+- 确认 API key 只保存到本地 SQLite；文件导出测试继续覆盖不写入 `game.md`、`manifest.yml`、`INDEX.md`、`image_catalog.yml` 和内容 MD。
+- 复查当前已知问题，未发现必须阻塞 MVP 的新增关键 bug；`pnpm lint` 未配置、`node:sqlite` ExperimentalWarning 和真实 GUI 全流程人工烟测仍记录为后续风险。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；测试中 `node:sqlite` 仍会输出 ExperimentalWarning。
+- `corepack pnpm lint` 未通过：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+- 已用已构建产物执行短启动烟测：`corepack pnpm start` 进程保持运行 8 秒，日志确认 SQLite 初始化成功。

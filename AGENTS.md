@@ -159,6 +159,7 @@ Codex 应逐步把项目演进为以下结构：
       aiProviderService.test.ts       # mock AI Provider 与连接测试单元测试
       domainTypes.test.ts            # 领域类型结构测试
       fileExportService.test.ts      # game.md、manifest、INDEX 文件生成测试
+      sampleWorkspace.test.ts        # 示例工作空间与 Agent 可读性验证测试
       sqliteService.test.ts          # SQLite 迁移与表结构测试
       workspaceService.test.ts       # 工作空间基础文件结构生成测试
     fixtures/
@@ -167,7 +168,7 @@ Codex 应逐步把项目演进为以下结构：
     dev.cjs                          # 清理 Electron 运行环境后启动 electron-vite dev
 
   examples/
-    sample-workspace/                # 可选：生成的示例上下文工作区
+    sample-workspace/                # T019 示例上下文工作区与 Agent 读取说明
 ```
 
 当前脚手架使用 `electron-vite` 的默认多入口结构，因此 React 代码位于 `src/renderer/src/`，并额外包含 `src/preload/` 以保持 Electron 安全隔离。

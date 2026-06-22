@@ -282,9 +282,15 @@ const copy = {
     exportIdle: '待同步',
     treeTitle: '节点树',
     treeHint: '一个工作空间对应一个游戏主节点。',
+    treeQuickActions: '快捷操作',
+    quickCreateGame: '建游戏',
+    quickUploadImage: '传图',
+    quickCreateModule: '建模块',
+    quickCreateContent: '建内容',
     emptyTreeTitle: '尚未选择工作空间',
     emptyTreeDescription: '创建工作空间后，这里会显示游戏、模块和内容节点。',
     workspaceTreeTitle: '当前工作空间',
+    activeNodeLabel: '当前查看',
     gameNodePlaceholder: '游戏主节点待创建',
     modulePlaceholder: '尚未创建模块节点',
     modulePanelTitle: '模块节点',
@@ -377,10 +383,8 @@ const copy = {
     contentMarkdownPreview: '创建或选择内容后显示内容 MD 预览。',
     detailTitleEmpty: '选择或创建工作空间',
     detailTitleReady: '工作空间概览',
-    detailSubtitleEmpty:
-      '先创建本地 game-context 目录。当前任务只提供布局与节点树壳，不创建真实节点。',
-    detailSubtitleReady:
-      '基础结构已就绪。后续任务会在这里显示节点字段、保存状态和 Markdown 预览。',
+    detailSubtitleEmpty: '从本地目录创建或导入 game-context，再按工作空间、游戏、图片、模块、内容的顺序补充上下文。',
+    detailSubtitleReady: '节点字段、关联图片、Markdown 预览和 AI 辅助都在同一个工作台内维护。',
     workspaceReady: '工作空间已创建',
     workspaceImported: '工作空间已导入',
     workspaceCanceled: '已取消选择目录。',
@@ -390,10 +394,14 @@ const copy = {
     createdPathsLabel: '本次创建',
     noNewPaths: '所需文件已存在，未覆盖已有内容。',
     emptyStateTitle: '等待节点数据',
-    emptyStateDescription:
-      'T005 只展示节点树空状态。游戏、模块、内容 CRUD 会在后续任务逐步接入。',
+    emptyStateDescription: '先创建或导入工作空间，然后按推荐路径创建游戏主节点、上传图片、创建模块和内容节点。',
     nextStepsTitle: '当前可用操作',
-    nextSteps: ['创建或复用工作空间', '区分空工作空间与已选工作空间', '查看基础生成结构'],
+    nextSteps: ['创建或导入工作空间', '创建游戏主节点', '上传图片并创建模块/内容'],
+    workflowTitle: '推荐路径',
+    workflowSteps: ['工作空间', '游戏', '图片', '模块', '内容'],
+    workflowDone: '已完成',
+    workflowCurrent: '当前',
+    workflowPending: '待处理',
     rightPanelTitle: '辅助面板',
     imagesPanel: '关联截图',
     imagesEmpty: '选择节点后显示关联图片。',
@@ -529,9 +537,15 @@ const copy = {
     exportIdle: 'Pending',
     treeTitle: 'Node tree',
     treeHint: 'One workspace maps to one game root node.',
+    treeQuickActions: 'Quick actions',
+    quickCreateGame: 'Game',
+    quickUploadImage: 'Image',
+    quickCreateModule: 'Module',
+    quickCreateContent: 'Content',
     emptyTreeTitle: 'No workspace selected',
     emptyTreeDescription: 'Create a workspace to show game, module, and content nodes here.',
     workspaceTreeTitle: 'Current workspace',
+    activeNodeLabel: 'Viewing',
     gameNodePlaceholder: 'Game root node pending',
     modulePlaceholder: 'No module nodes yet',
     modulePanelTitle: 'Module node',
@@ -624,10 +638,8 @@ const copy = {
     contentMarkdownPreview: 'Create or select content to show the content Markdown preview.',
     detailTitleEmpty: 'Select or create a workspace',
     detailTitleReady: 'Workspace overview',
-    detailSubtitleEmpty:
-      'Create a local game-context directory first. This task only provides layout and empty node-tree states.',
-    detailSubtitleReady:
-      'The base structure is ready. Later tasks will show node fields, save state, and Markdown preview here.',
+    detailSubtitleEmpty: 'Create or import a local game-context directory, then work through workspace, game, images, modules, and content.',
+    detailSubtitleReady: 'Node fields, linked images, Markdown preview, and AI assist are maintained in one workspace.',
     workspaceReady: 'Workspace created',
     workspaceImported: 'Workspace imported',
     workspaceCanceled: 'Folder selection canceled.',
@@ -637,10 +649,14 @@ const copy = {
     createdPathsLabel: 'Created now',
     noNewPaths: 'Required files already exist; existing content was not overwritten.',
     emptyStateTitle: 'Waiting for node data',
-    emptyStateDescription:
-      'T005 only renders the node-tree shell. Game, module, and content CRUD will be connected in later tasks.',
+    emptyStateDescription: 'Create or import a workspace, then follow the recommended path to add the game root, images, modules, and content nodes.',
     nextStepsTitle: 'Available now',
-    nextSteps: ['Create or reuse a workspace', 'Distinguish empty and selected workspace states', 'Inspect base structure'],
+    nextSteps: ['Create or import a workspace', 'Create the game root node', 'Upload images and add modules/content'],
+    workflowTitle: 'Recommended path',
+    workflowSteps: ['Workspace', 'Game', 'Images', 'Modules', 'Content'],
+    workflowDone: 'Done',
+    workflowCurrent: 'Current',
+    workflowPending: 'Pending',
     rightPanelTitle: 'Assistant panel',
     imagesPanel: 'Linked images',
     imagesEmpty: 'Linked screenshots appear after selecting a node.',
@@ -1719,6 +1735,42 @@ function App(): React.JSX.Element {
     }
   }
 
+  function scrollToPanel(panelId: string): void {
+    document.getElementById(panelId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function handleShowGamePanel(): void {
+    void handleSelectModule('');
+    scrollToPanel('game-node-panel');
+  }
+
+  function handleShowImagePanel(): void {
+    scrollToPanel('image-library-panel');
+  }
+
+  function handleStartNewModule(): void {
+    setSelectedModule(undefined);
+    setModuleForm(initialModuleForm);
+    setModuleMarkdownPreview('');
+    setModuleErrorMessage(undefined);
+    setModuleStatus('idle');
+    setSelectedContent(undefined);
+    setContentForm(initialContentForm);
+    setContentMarkdownPreview('');
+    setActiveNodeKind('game');
+    scrollToPanel('module-node-panel');
+  }
+
+  function handleStartNewContent(): void {
+    setSelectedContent(undefined);
+    setContentForm(initialContentForm);
+    setContentMarkdownPreview('');
+    setContentErrorMessage(undefined);
+    setContentStatus('idle');
+    setActiveNodeKind(selectedModule ? 'module' : 'game');
+    scrollToPanel('content-node-panel');
+  }
+
   return (
     <main className="flex min-h-screen flex-col bg-slate-100 text-slate-950">
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5">
@@ -1760,6 +1812,22 @@ function App(): React.JSX.Element {
                 selectedModule={selectedModule}
                 contents={contents}
                 selectedContent={selectedContent}
+                activeNodeKind={activeNodeKind}
+                canCreateModule={Boolean(game && currentUser)}
+                canCreateContent={Boolean(selectedModule && currentUser)}
+                canUploadImage={Boolean(game && currentUser)}
+                onSelectGame={handleShowGamePanel}
+                onSelectModule={(moduleId) => {
+                  void handleSelectModule(moduleId);
+                  scrollToPanel('module-node-panel');
+                }}
+                onSelectContent={(contentId) => {
+                  void handleSelectContent(contentId);
+                  scrollToPanel('content-node-panel');
+                }}
+                onNewModule={handleStartNewModule}
+                onNewContent={handleStartNewContent}
+                onShowImageLibrary={handleShowImagePanel}
               />
             ) : (
               <EmptyTree text={text} />
@@ -1831,6 +1899,15 @@ function App(): React.JSX.Element {
                 detail={errorMessage}
               />
             ) : null}
+
+            <WorkflowGuide
+              text={text}
+              hasWorkspace={hasWorkspace}
+              hasGame={Boolean(game)}
+              hasImages={images.length > 0}
+              hasModules={modules.length > 0}
+              hasContents={contents.length > 0}
+            />
 
             <UserPanel
               text={text}
@@ -1915,14 +1992,7 @@ function App(): React.JSX.Element {
                   onSelectModule={(moduleId) => {
                     void handleSelectModule(moduleId);
                   }}
-                  onNewModule={() => {
-                    setSelectedModule(undefined);
-                    setModuleForm(initialModuleForm);
-                    setModuleMarkdownPreview('');
-                    setModuleErrorMessage(undefined);
-                    setModuleStatus('idle');
-                    setActiveNodeKind('game');
-                  }}
+                  onNewModule={handleStartNewModule}
                   onSave={() => {
                     void handleSaveModule();
                   }}
@@ -1944,14 +2014,7 @@ function App(): React.JSX.Element {
                   onSelectContent={(contentId) => {
                     void handleSelectContent(contentId);
                   }}
-                  onNewContent={() => {
-                    setSelectedContent(undefined);
-                    setContentForm(initialContentForm);
-                    setContentMarkdownPreview('');
-                    setContentErrorMessage(undefined);
-                    setContentStatus('idle');
-                    setActiveNodeKind(selectedModule ? 'module' : 'game');
-                  }}
+                  onNewContent={handleStartNewContent}
                   onSave={() => {
                     void handleSaveContent();
                   }}
@@ -1966,7 +2029,7 @@ function App(): React.JSX.Element {
           </div>
         </section>
 
-        <aside className="min-h-0 overflow-auto border-l border-slate-200 bg-white px-4 py-4">
+        <aside className="min-h-0 overflow-auto border-l border-slate-200 bg-slate-50 px-4 py-4">
           <h2 className="text-sm font-semibold text-slate-800">{text.rightPanelTitle}</h2>
           <div className="mt-4 space-y-3">
             <ImagePreviewPanel
@@ -2020,7 +2083,7 @@ function App(): React.JSX.Element {
               }}
               onCancelGameSummary={handleCancelAiGameSummary}
             />
-            <section className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
               <h3 className="text-xs font-semibold text-slate-700">{text.generatedFilesTitle}</h3>
               <ul className="mt-3 space-y-1">
                 {text.generatedFiles.map((filePath) => (
@@ -2059,6 +2122,59 @@ function StatusPill({
   );
 }
 
+function WorkflowGuide({
+  text,
+  hasWorkspace,
+  hasGame,
+  hasImages,
+  hasModules,
+  hasContents
+}: {
+  text: (typeof copy)[Language];
+  hasWorkspace: boolean;
+  hasGame: boolean;
+  hasImages: boolean;
+  hasModules: boolean;
+  hasContents: boolean;
+}): React.JSX.Element {
+  const states = [hasWorkspace, hasGame, hasImages, hasModules, hasContents];
+  const currentIndex = states.findIndex((done) => !done);
+  const activeIndex = currentIndex === -1 ? states.length - 1 : currentIndex;
+
+  return (
+    <section className="mt-5 rounded-md border border-slate-200 bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-xs font-semibold uppercase text-cyan-700">{text.workflowTitle}</h3>
+        <p className="text-xs text-slate-500">{text.detailSubtitleReady}</p>
+      </div>
+      <ol className="mt-4 grid gap-2 sm:grid-cols-5">
+        {text.workflowSteps.map((step, index) => {
+          const done = states[index];
+          const current = index === activeIndex && !done;
+          const statusText = done ? text.workflowDone : current ? text.workflowCurrent : text.workflowPending;
+          const tone = done
+            ? 'border-cyan-200 bg-cyan-50 text-cyan-800'
+            : current
+              ? 'border-slate-900 bg-slate-900 text-white'
+              : 'border-slate-200 bg-slate-50 text-slate-500';
+
+          return (
+            <li key={step} className={`rounded-md border px-3 py-2 ${tone}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold">{index + 1}</span>
+                <span className="text-[10px]">{statusText}</span>
+              </div>
+              <p className="mt-2 truncate text-sm font-medium" title={step}>
+                {step}
+              </p>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
 function EmptyTree({ text }: { text: (typeof copy)[Language] }): React.JSX.Element {
   return (
     <section className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4">
@@ -2076,7 +2192,17 @@ function WorkspaceTree({
   modules,
   selectedModule,
   contents,
-  selectedContent
+  selectedContent,
+  activeNodeKind,
+  canCreateModule,
+  canCreateContent,
+  canUploadImage,
+  onSelectGame,
+  onSelectModule,
+  onSelectContent,
+  onNewModule,
+  onNewContent,
+  onShowImageLibrary
 }: {
   text: (typeof copy)[Language];
   workspacePath: string;
@@ -2086,6 +2212,16 @@ function WorkspaceTree({
   selectedModule?: ModuleNode;
   contents: ContentNode[];
   selectedContent?: ContentNode;
+  activeNodeKind: ActiveNodeKind;
+  canCreateModule: boolean;
+  canCreateContent: boolean;
+  canUploadImage: boolean;
+  onSelectGame: () => void;
+  onSelectModule: (moduleId: string) => void;
+  onSelectContent: (contentId: string) => void;
+  onNewModule: () => void;
+  onNewContent: () => void;
+  onShowImageLibrary: () => void;
 }): React.JSX.Element {
   return (
     <nav aria-label={text.treeTitle} className="space-y-3">
@@ -2096,22 +2232,48 @@ function WorkspaceTree({
         </p>
       </div>
 
+      <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+        <p className="px-1 text-xs font-semibold uppercase text-slate-500">{text.treeQuickActions}</p>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <TreeActionButton label={text.quickCreateGame} disabled={!hasCurrentUser} onClick={onSelectGame} />
+          <TreeActionButton label={text.quickUploadImage} disabled={!canUploadImage} onClick={onShowImageLibrary} />
+          <TreeActionButton label={text.quickCreateModule} disabled={!canCreateModule} onClick={onNewModule} />
+          <TreeActionButton label={text.quickCreateContent} disabled={!canCreateContent} onClick={onNewContent} />
+        </div>
+      </div>
+
       <div className="space-y-1">
         <TreeRow
           depth={0}
           label={game?.gameName ?? (hasCurrentUser ? text.gameNodePlaceholder : text.gameNodeRequiresUser)}
-          active={Boolean(game) || hasCurrentUser}
+          active={activeNodeKind === 'game'}
+          meta={game ? text.activeNodeLabel : undefined}
+          onClick={onSelectGame}
         />
         {modules.length > 0 ? (
           modules.map((module) => (
-            <TreeRow key={module.id} depth={1} label={module.moduleName} active={selectedModule?.id === module.id} />
+            <TreeRow
+              key={module.id}
+              depth={1}
+              label={module.moduleName}
+              active={activeNodeKind === 'module' && selectedModule?.id === module.id}
+              meta={selectedModule?.id === module.id ? text.activeNodeLabel : undefined}
+              onClick={() => onSelectModule(module.id)}
+            />
           ))
         ) : (
           <TreeRow depth={1} label={text.modulePlaceholder} />
         )}
         {contents.length > 0 ? (
           contents.map((content) => (
-            <TreeRow key={content.id} depth={2} label={content.title} active={selectedContent?.id === content.id} />
+            <TreeRow
+              key={content.id}
+              depth={2}
+              label={content.title}
+              active={activeNodeKind === 'content' && selectedContent?.id === content.id}
+              meta={selectedContent?.id === content.id ? text.activeNodeLabel : undefined}
+              onClick={() => onSelectContent(content.id)}
+            />
           ))
         ) : (
           <TreeRow depth={2} label={text.contentPlaceholder} />
@@ -2148,7 +2310,7 @@ function ImageLibraryPanel({
   const canUpload = Boolean(currentUser && game) && !isSaving;
 
   return (
-    <section className="mt-6 rounded-md border border-slate-200 bg-white p-5">
+    <section id="image-library-panel" className="mt-6 rounded-md border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase text-cyan-700">{text.imageUploadTitle}</p>
@@ -2308,7 +2470,7 @@ function ModuleNodePanel({
   const canSave = Boolean(currentUser && game) && !isSaving;
 
   return (
-    <section className="mt-6 rounded-md border border-slate-200 bg-white p-5">
+    <section id="module-node-panel" className="mt-6 rounded-md border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase text-cyan-700">{text.modulePanelTitle}</p>
@@ -2422,7 +2584,7 @@ function ModuleNodePanel({
         />
       </div>
 
-      <fieldset className="mt-5 rounded-md border border-slate-200 p-4">
+      <fieldset className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
         <legend className="px-1 text-xs font-semibold text-slate-600">{text.linkedImagesLabel}</legend>
         {images.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -2430,7 +2592,7 @@ function ModuleNodePanel({
               const checked = form.imageIds.includes(image.id);
 
               return (
-                <label key={image.id} className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+                <label key={image.id} className="flex items-start gap-3 rounded-md border border-slate-200 bg-white p-3 text-sm shadow-sm">
                   <input
                     className="mt-1"
                     type="checkbox"
@@ -2492,7 +2654,7 @@ function ModuleNodePanel({
       </div>
 
       {selectedModule ? (
-        <div className="mt-5 border-t border-slate-200 pt-5">
+        <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase text-cyan-700">{text.lockedFieldsTitle}</p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <LockedField label={text.gameIdLabel} value={selectedModule.gameId} />
@@ -2543,7 +2705,7 @@ function ContentNodePanel({
   const canSave = Boolean(currentUser && selectedModule) && !isSaving;
 
   return (
-    <section className="mt-6 rounded-md border border-slate-200 bg-white p-5">
+    <section id="content-node-panel" className="mt-6 rounded-md border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase text-cyan-700">{text.contentPanelTitle}</p>
@@ -2633,7 +2795,7 @@ function ContentNodePanel({
         />
       </div>
 
-      <fieldset className="mt-5 rounded-md border border-slate-200 p-4">
+      <fieldset className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
         <legend className="px-1 text-xs font-semibold text-slate-600">{text.accountStatusLabel}</legend>
         <div className="grid gap-4 md:grid-cols-2">
           <GameFieldInput
@@ -2667,7 +2829,7 @@ function ContentNodePanel({
         </div>
       </fieldset>
 
-      <fieldset className="mt-5 rounded-md border border-slate-200 p-4">
+      <fieldset className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
         <legend className="px-1 text-xs font-semibold text-slate-600">{text.linkedImagesLabel}</legend>
         {images.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -2675,7 +2837,7 @@ function ContentNodePanel({
               const checked = form.imageIds.includes(image.id);
 
               return (
-                <label key={image.id} className="flex items-start gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
+                <label key={image.id} className="flex items-start gap-3 rounded-md border border-slate-200 bg-white p-3 text-sm shadow-sm">
                   <input
                     className="mt-1"
                     type="checkbox"
@@ -2737,7 +2899,7 @@ function ContentNodePanel({
       </div>
 
       {selectedContent ? (
-        <div className="mt-5 border-t border-slate-200 pt-5">
+        <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase text-cyan-700">{text.lockedFieldsTitle}</p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <LockedField label={text.moduleIdLabel} value={selectedContent.moduleId} />
@@ -2777,7 +2939,7 @@ function GameNodePanel({
   const canSave = Boolean(currentUser) && !isSaving;
 
   return (
-    <section className="mt-6 rounded-md border border-slate-200 bg-white p-5">
+    <section id="game-node-panel" className="mt-6 rounded-md border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase text-cyan-700">{text.createGameTitle}</p>
@@ -2912,7 +3074,7 @@ function GameNodePanel({
       </div>
 
       {game ? (
-        <div className="mt-5 border-t border-slate-200 pt-5">
+        <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase text-cyan-700">{text.lockedFieldsTitle}</p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <LockedField label={text.creatorIdLabel} value={game.creatorId} />
@@ -3081,23 +3243,60 @@ function UserPanel({
 function TreeRow({
   label,
   depth,
-  active = false
+  active = false,
+  meta,
+  onClick
 }: {
   label: string;
   depth: 0 | 1 | 2;
   active?: boolean;
+  meta?: string;
+  onClick?: () => void;
 }): React.JSX.Element {
-  const padding = depth === 0 ? 'pl-2' : depth === 1 ? 'pl-6' : 'pl-10';
+  const padding = depth === 0 ? 'pl-2' : depth === 1 ? 'pl-5' : 'pl-8';
+  const buttonState = onClick
+    ? active
+      ? 'bg-slate-900 text-white shadow-sm'
+      : 'text-slate-600 hover:bg-white hover:text-slate-950'
+    : 'cursor-default text-slate-400';
 
   return (
-    <div
-      className={`flex h-9 items-center gap-2 rounded-md pr-2 text-sm ${padding} ${
-        active ? 'bg-slate-900 text-white' : 'text-slate-500'
-      }`}
+    <button
+      className={`group flex min-h-9 w-full items-center gap-2 rounded-md pr-2 text-left text-sm transition ${padding} ${buttonState}`}
+      type="button"
+      disabled={!onClick}
+      onClick={onClick}
     >
-      <span className={`h-2 w-2 rounded-full ${active ? 'bg-cyan-300' : 'bg-slate-300'}`} />
-      <span className="truncate">{label}</span>
-    </div>
+      <span className={`h-2 w-2 shrink-0 rounded-full ${active ? 'bg-cyan-300' : depth === 0 ? 'bg-cyan-600' : 'bg-slate-300'}`} />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {meta ? (
+        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${active ? 'bg-white/10 text-cyan-100' : 'bg-cyan-50 text-cyan-700'}`}>
+          {meta}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+function TreeActionButton({
+  label,
+  disabled,
+  onClick
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+}): React.JSX.Element {
+  return (
+    <button
+      className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 transition hover:border-cyan-500 hover:text-cyan-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title={label}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -3576,8 +3775,11 @@ function ImagePreviewPanel({
   images: ImageAssetView[];
 }): React.JSX.Element {
   return (
-    <section className="rounded-md border border-slate-200 p-3">
-      <h3 className="text-xs font-semibold text-slate-700">{title}</h3>
+    <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold text-slate-700">{title}</h3>
+        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">{images.length}</span>
+      </div>
       {nodeTitle ? (
         <p className="mt-1 truncate text-xs text-slate-500" title={nodeTitle}>
           {nodeTitle}
@@ -3586,9 +3788,9 @@ function ImagePreviewPanel({
       {images.length > 0 ? (
         <div className="mt-2 grid max-h-[420px] gap-2 overflow-auto pr-1">
           {images.map((image) => (
-            <div key={image.id} className="overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+            <div key={image.id} className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
               {image.previewDataUrl ? (
-                <img className="aspect-video w-full object-contain" src={image.previewDataUrl} alt={image.displayName} />
+                <img className="aspect-video w-full bg-slate-100 object-contain" src={image.previewDataUrl} alt={image.displayName} />
               ) : null}
               <div className="px-2 py-1.5">
                 <p className="truncate text-xs font-medium text-slate-700" title={image.displayName}>
@@ -3623,7 +3825,7 @@ function PreviewPanel({
   markdownPreview: string;
 }): React.JSX.Element {
   return (
-    <section className="rounded-md border border-slate-200 p-3">
+    <section className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
       <h3 className="text-xs font-semibold text-slate-700">{title}</h3>
       {nodeTitle ? (
         <p className="mt-1 truncate text-xs text-slate-500" title={nodeTitle}>
@@ -3631,7 +3833,7 @@ function PreviewPanel({
         </p>
       ) : null}
       {markdownPreview ? (
-        <pre className="mt-2 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-md bg-slate-950 p-3 font-mono text-xs leading-5 text-slate-100">
+        <pre className="mt-2 max-h-[520px] overflow-auto whitespace-pre-wrap rounded-md border border-slate-800 bg-slate-950 p-3 font-mono text-xs leading-5 text-slate-100 shadow-inner">
           {markdownPreview}
         </pre>
       ) : (
@@ -3652,11 +3854,11 @@ function Notice({
 }): React.JSX.Element {
   const toneClass =
     tone === 'danger'
-      ? 'border-red-200 bg-red-50 text-red-900'
-      : 'border-slate-200 bg-white text-slate-700';
+      ? 'border-red-200 bg-red-50 text-red-900 before:bg-red-500'
+      : 'border-cyan-200 bg-cyan-50 text-cyan-900 before:bg-cyan-600';
 
   return (
-    <section className={`mt-5 rounded-md border px-4 py-3 text-sm ${toneClass}`}>
+    <section className={`relative mt-5 overflow-hidden rounded-md border px-4 py-3 pl-5 text-sm shadow-sm before:absolute before:inset-y-0 before:left-0 before:w-1 ${toneClass}`}>
       <p className="font-medium">{title}</p>
       {detail ? <p className="mt-1 break-all">{detail}</p> : null}
     </section>

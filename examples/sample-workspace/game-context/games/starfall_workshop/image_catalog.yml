@@ -1,0 +1,27 @@
+generated_at: 2026-06-22T09:00:00.000Z
+images:
+  img_lobby_overview:
+    name: 大厅总览示意
+    original_file_name: lobby-overview.svg
+    path: games/starfall_workshop/assets/images/img_lobby_overview__lobby-overview.svg
+    file_type: svg
+    game_id: starfall_workshop
+    uploader_id: sample_designer
+    updated_at: 2026-06-22T09:05:00.000Z
+    notes: 示例 SVG，用于说明大厅入口、任务按钮和工坊入口的位置。
+    linked_nodes:
+      - game:starfall_workshop
+      - module:core_loop
+      - content:day1_lobby_first_loop
+  img_upgrade_result:
+    name: 升级结果示意
+    original_file_name: upgrade-result.svg
+    path: games/starfall_workshop/assets/images/img_upgrade_result__upgrade-result.svg
+    file_type: svg
+    game_id: starfall_workshop
+    uploader_id: sample_designer
+    updated_at: 2026-06-22T09:06:00.000Z
+    notes: 示例 SVG，用于说明升级确认和材料不足反馈。
+    linked_nodes:
+      - module:upgrade_shop
+      - content:day2_upgrade_pressure

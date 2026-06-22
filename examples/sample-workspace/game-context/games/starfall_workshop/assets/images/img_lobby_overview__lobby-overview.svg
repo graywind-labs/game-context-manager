@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Lobby overview sample image</title>
+  <desc id="desc">A simple sample lobby layout showing a mission card, workshop entry, and activity entry.</desc>
+  <rect width="960" height="540" fill="#f8fafc"/>
+  <rect x="48" y="44" width="864" height="452" rx="18" fill="#e0f2fe" stroke="#0369a1" stroke-width="4"/>
+  <text x="84" y="105" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#0f172a">星坠工坊 - 大厅示意</text>
+  <rect x="90" y="150" width="350" height="250" rx="14" fill="#ffffff" stroke="#0284c7" stroke-width="3"/>
+  <text x="125" y="205" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#075985">今日任务</text>
+  <text x="125" y="255" font-family="Arial, sans-serif" font-size="22" fill="#334155">完成短任务获得星尘</text>
+  <rect x="125" y="302" width="210" height="58" rx="12" fill="#0f172a"/>
+  <text x="170" y="339" font-family="Arial, sans-serif" font-size="24" fill="#ffffff">开始任务</text>
+  <rect x="520" y="150" width="290" height="110" rx="14" fill="#ecfeff" stroke="#0891b2" stroke-width="3"/>
+  <text x="575" y="215" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#155e75">工坊入口</text>
+  <rect x="520" y="290" width="290" height="110" rx="14" fill="#fefce8" stroke="#ca8a04" stroke-width="3"/>
+  <text x="575" y="355" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#854d0e">活动入口</text>
+</svg>
