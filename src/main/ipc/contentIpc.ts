@@ -54,6 +54,7 @@ export function registerContentIpc(sqliteService: SqliteService): void {
 
   ipcMain.handle(CONTENT_DELETE_CHANNEL, (_event, input: DeleteContentNodeInput): ContentNodeState => {
     const workspace = requireWorkspace(sqliteService, input.workspaceId);
+    const currentUserId = requireCurrentUserId(workspace);
     const game = requireGame(sqliteService, input.workspaceId);
     const content = sqliteService.getContentNode(input.workspaceId, input.id);
 
@@ -61,11 +62,13 @@ export function registerContentIpc(sqliteService: SqliteService): void {
       throw new Error(`Content node not found: ${input.id}`);
     }
 
+    requireDeleteOwner(currentUserId, content.creatorId, 'Only the content node creator can delete this content node.');
     sqliteService.deleteContentNode(input);
     deleteContentNodeFiles({
       workspace,
       game,
       contentId: input.id,
+      moduleId: content.moduleId,
       modules: sqliteService.getModuleNodes(input.workspaceId),
       contents: sqliteService.getContentNodes(input.workspaceId),
       users: sqliteService.getUserState(input.workspaceId).users,
@@ -151,4 +154,10 @@ function requireCurrentUserId(workspace: WorkspaceConfig): string {
   }
 
   return workspace.currentUserId;
+}
+
+function requireDeleteOwner(currentUserId: string, ownerId: string, message: string): void {
+  if (currentUserId !== ownerId) {
+    throw new Error(message);
+  }
 }

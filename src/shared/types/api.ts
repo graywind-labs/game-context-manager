@@ -7,7 +7,6 @@ export interface SaveApiConfigInput {
   baseUrl: string;
   apiKey?: string;
   modelName: string;
-  enabled: boolean;
 }
 
 export interface ApiConnectionTestResult {

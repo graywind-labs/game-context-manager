@@ -13,7 +13,7 @@ created_at: 2026-06-22T09:22:00.000Z
 updated_at: 2026-06-22T09:25:00.000Z
 account_day: "2"
 cumulative_payment_amount: "0"
-max_mainline_progress: "1-5"
+max_mainline_progress: 1-5
 character_level: "8"
 images:
   - img_upgrade_result
@@ -36,14 +36,14 @@ images:
 
 玩家在工坊点击升级后看到 @img_upgrade_result。当前星尘足够，但零件不足，界面只显示缺少数量，没有直接告诉玩家应回到哪个任务获取。
 
-## 乐趣点（主观）
+## 乐趣点
 
 升级预览能展示收益提升，玩家知道升级是有价值的。
 
-## 已知问题（主观）
+## 已知问题
 
 材料不足时缺少下一步路径，容易让玩家停留在商店界面反复检查。
 
-## 优化方向（主观）
+## 优化方向
 
 材料不足提示中加入“前往零件任务”按钮，并显示预计一次任务可获得的零件数量。

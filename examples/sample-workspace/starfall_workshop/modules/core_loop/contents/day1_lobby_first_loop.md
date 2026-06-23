@@ -13,7 +13,7 @@ created_at: 2026-06-22T09:18:00.000Z
 updated_at: 2026-06-22T09:20:00.000Z
 account_day: "1"
 cumulative_payment_amount: "0"
-max_mainline_progress: "1-2"
+max_mainline_progress: 1-2
 character_level: "4"
 images:
   - img_lobby_overview
@@ -36,14 +36,14 @@ images:
 
 玩家登录后先看到 @img_lobby_overview，大厅中央任务卡提示可开始短任务。完成第一轮任务后，奖励弹窗引导玩家进入工坊查看升级。
 
-## 乐趣点（主观）
+## 乐趣点
 
 第一次任务链路短，玩家能在一分钟内看到任务完成、奖励发放和工坊入口。
 
-## 已知问题（主观）
+## 已知问题
 
 任务卡和活动入口距离较近，未读文案时可能误点到活动入口。
 
-## 优化方向（主观）
+## 优化方向
 
 首轮任务完成前隐藏活动入口，或将活动入口视觉权重降低。

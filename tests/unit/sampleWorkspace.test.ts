@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
+import { importWorkspaceFromDirectory } from '../../src/main/services/workspaceService.js';
 
 interface ManifestNodeEntry {
   path: string;
@@ -11,6 +12,7 @@ interface ManifestNodeEntry {
 interface ManifestImageEntry {
   path: string;
   linked_nodes: string[];
+  linked_node_files?: Array<{ node_type: string; node_id: string; path: string }>;
 }
 
 interface SampleManifest {
@@ -21,6 +23,8 @@ interface SampleManifest {
   modules: Record<string, ManifestNodeEntry>;
   contents: Record<string, ManifestNodeEntry & { module_id: string }>;
   images: Record<string, ManifestImageEntry>;
+  field_schema?: Record<string, Array<{ field: string }>>;
+  task_context_entries?: { start_here?: string; image_catalog?: string };
 }
 
 interface MarkdownNode {
@@ -29,9 +33,10 @@ interface MarkdownNode {
 }
 
 const sampleRoot = join(process.cwd(), 'examples', 'sample-workspace');
-const contextRoot = join(sampleRoot, 'game-context');
+const contextRoot = sampleRoot;
 const manifestPath = join(contextRoot, 'manifest.yml');
 
+assert.equal(existsSync(join(contextRoot, '.game-context-manager.yml')), true);
 assert.equal(existsSync(manifestPath), true);
 
 const sampleReadme = readFileSync(join(sampleRoot, 'README.md'), 'utf8');
@@ -40,15 +45,22 @@ assert.match(sampleReadme, /Claude Code/);
 assert.match(sampleReadme, /manifest\.yml/);
 assert.match(sampleReadme, /Manual Readability Check/);
 
-for (const staticFile of ['AGENTS.md', 'CLAUDE.md', 'USAGE.md', 'README.md']) {
+for (const staticFile of ['AGENTS.md', 'CLAUDE.md', 'README.md']) {
   assert.equal(existsSync(join(contextRoot, staticFile)), true);
 }
+const sampleClaude = readFileSync(join(contextRoot, 'CLAUDE.md'), 'utf8');
+assert.match(sampleClaude, /Common Task Playbooks/);
+assert.match(sampleClaude, /Boundaries/);
 
 const manifest = parse(readFileSync(manifestPath, 'utf8')) as SampleManifest;
 assert.equal(manifest.game.node_id, 'starfall_workshop');
 assert.equal(Object.keys(manifest.modules).length, 2);
 assert.equal(Object.keys(manifest.contents).length, 2);
 assert.equal(Object.keys(manifest.images).length, 2);
+assert.equal(manifest.field_schema?.game.some((field) => field.field === 'coreGameplay'), true);
+assert.equal(manifest.field_schema?.content.some((field) => field.field === 'cumulativePaymentAmount'), true);
+assert.equal(manifest.task_context_entries?.start_here, 'AGENTS.md');
+assert.equal(manifest.task_context_entries?.image_catalog, 'starfall_workshop/image_catalog.yml');
 
 const gameNode = readMarkdownNode(join(contextRoot, manifest.game.path));
 assert.equal(gameNode.frontmatter.node_type, 'game');
@@ -57,12 +69,14 @@ assert.match(gameNode.body, /# 星坠工坊/);
 
 assert.equal(existsSync(join(contextRoot, manifest.game.index)), true);
 const indexMarkdown = readFileSync(join(contextRoot, manifest.game.index), 'utf8');
-assert.match(indexMarkdown, /modules\/core_loop\.md/);
-assert.match(indexMarkdown, /modules\/upgrade_shop\.md/);
-assert.match(indexMarkdown, /contents\/day1_lobby_first_loop\.md/);
-assert.match(indexMarkdown, /contents\/day2_upgrade_pressure\.md/);
+assert.match(indexMarkdown, /modules\/core_loop\/module\.md/);
+assert.match(indexMarkdown, /modules\/upgrade_shop\/module\.md/);
+assert.match(indexMarkdown, /modules\/core_loop\/contents\/day1_lobby_first_loop\.md/);
+assert.match(indexMarkdown, /modules\/upgrade_shop\/contents\/day2_upgrade_pressure\.md/);
 assert.match(indexMarkdown, /assets\/images\/img_lobby_overview__lobby-overview\.svg/);
 assert.match(indexMarkdown, /assets\/images\/img_upgrade_result__upgrade-result\.svg/);
+assert.match(indexMarkdown, /Structured Field Map/);
+assert.match(indexMarkdown, /`cumulativePaymentAmount`/);
 
 for (const [moduleId, moduleEntry] of Object.entries(manifest.modules)) {
   const moduleNode = readMarkdownNode(join(contextRoot, moduleEntry.path));
@@ -90,12 +104,33 @@ for (const [contentId, contentEntry] of Object.entries(manifest.contents)) {
 for (const [imageId, imageEntry] of Object.entries(manifest.images)) {
   assert.equal(existsSync(join(contextRoot, imageEntry.path)), true, `${imageId} path is missing`);
   assert.ok(imageEntry.linked_nodes.length > 0, `${imageId} should list linked nodes`);
+  assert.ok((imageEntry.linked_node_files?.length ?? 0) > 0, `${imageId} should list linked node files`);
 }
 
 const imageCatalog = parse(
-  readFileSync(join(contextRoot, 'games', 'starfall_workshop', 'image_catalog.yml'), 'utf8')
+  readFileSync(join(contextRoot, 'starfall_workshop', 'image_catalog.yml'), 'utf8')
 ) as { images: Record<string, ManifestImageEntry> };
 assert.deepEqual(Object.keys(imageCatalog.images).sort(), Object.keys(manifest.images).sort());
+
+const importedSample = importWorkspaceFromDirectory(contextRoot, 'sample_designer', new Date('2026-06-23T00:00:00.000Z'));
+assert.equal(importedSample.summary.imported.gameCount, 1);
+assert.equal(importedSample.summary.imported.moduleCount, 2);
+assert.equal(importedSample.summary.imported.contentCount, 2);
+assert.equal(importedSample.summary.imported.imageCount, 2);
+assert.equal(importedSample.snapshot.workspace.activeGameFolderName, 'starfall_workshop');
+assert.equal(importedSample.snapshot.contents[0].moduleId.length > 0, true);
+
+for (const sampleFile of [
+  'AGENTS.md',
+  'CLAUDE.md',
+  'manifest.yml',
+  'starfall_workshop/game.md',
+  'starfall_workshop/INDEX.md',
+  'starfall_workshop/image_catalog.yml'
+]) {
+  assert.doesNotMatch(readFileSync(join(contextRoot, sampleFile), 'utf8'), /sk-[a-zA-Z0-9_-]+/);
+  assert.doesNotMatch(readFileSync(join(contextRoot, sampleFile), 'utf8'), /api[_ -]?key\s*[:=]/i);
+}
 
 function readMarkdownNode(filePath: string): MarkdownNode {
   assert.equal(existsSync(filePath), true, `${filePath} is missing`);

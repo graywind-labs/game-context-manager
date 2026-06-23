@@ -48,7 +48,6 @@ export interface GameNode extends AuditableFields {
   currentOperationGoal?: string;
   currentMainProblems?: string;
   mainOptimizationDirections?: string;
-  notes?: string;
   coverImageId?: ImageId;
 }
 
@@ -115,8 +114,11 @@ export interface WorkspaceConfig {
   id: WorkspaceId;
   rootPath: string;
   contextPath: string;
+  markerPath?: string;
   activeGameId?: GameId;
+  activeGameFolderName?: string;
   currentUserId?: UserId;
+  directoryIndexNeedsExport?: boolean;
   schemaVersion: number;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
@@ -127,7 +129,6 @@ export interface ApiConfig {
   baseUrl: string;
   apiKey?: string;
   modelName: string;
-  enabled: boolean;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }
@@ -145,7 +146,6 @@ export type EditableFieldMap = {
     | 'currentOperationGoal'
     | 'currentMainProblems'
     | 'mainOptimizationDirections'
-    | 'notes'
     | 'coverImageId'
   >;
   [NodeType.Module]: keyof Pick<

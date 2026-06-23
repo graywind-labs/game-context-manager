@@ -1,4 +1,4 @@
-# TASK.md
+﻿# TASK.md
 
 # Game Context Manager 开发任务表
 
@@ -10,6 +10,8 @@
 - 完成后必须更新 `CURRENT_STATE.md`。
 - 后一任务必须建立在前一任务基础上，不要跳步。
 - 如果任务无法完成，保持 `TODO`，在 `验收结果` 和 `CURRENT_STATE.md` 记录阻塞原因。
+
+说明：T001-T020 是旧版 MVP 的历史验收记录；从 T021 开始，当前目标以新的两栏 UI、唯一标记工作区、自动 ID、设置内语言/API、手动导出索引等 `DESIGN.md` 规则为准。旧任务中的三栏布局、实时目录更新、主界面语言/API 入口等描述不再作为后续实现目标。
 
 ---
 
@@ -979,3 +981,690 @@
 - `corepack pnpm lint` 未通过：当前尚未配置 lint 脚本。
 - `corepack pnpm build` 已通过。
 - 已用已构建产物执行短启动烟测：`corepack pnpm start` 进程保持运行 8 秒，日志确认 SQLite 初始化成功。
+
+---
+
+## T021 — 新版工作区标记、文件结构与导入基础
+
+**状态**：DONE
+
+### 要做什么
+
+把工作区基础从旧版固定 `game-context/` 外层目录迁移为新版结构：
+
+- 在用户选择的文件夹中写入唯一标记 `.game-context-manager.yml`。
+- 创建主节点时，在所选文件夹中创建以主节点名称清洗后的主节点文件夹。
+- 主节点文件写入 `<game_folder_name>/game.md`。
+- 模块与内容文件目标路径调整为：
+  - `<game_folder_name>/modules/<module_id>/module.md`
+  - `<game_folder_name>/modules/<module_id>/contents/<content_id>.md`
+- 增加程序自动分配 ID 的服务或工具，节点/图片创建时不再要求用户输入 ID。
+- 导入工作区时识别唯一标记：无标记或多个标记都必须失败并给出明确错误。
+- 更新 SQLite 工作区记录，以保存标记信息、主节点文件夹名和新版路径。
+- 更新相关单元测试和 fixture。
+
+### 暂不做什么
+
+- 不重构完整 UI。
+- 不实现拖拽/粘贴上传。
+- 不实现 AI 弹窗新交互。
+- 不实现右键打开文件夹。
+
+### 验收标准
+
+- 创建主节点时能生成 `.game-context-manager.yml` 和 `<game_folder_name>/game.md`。
+- 模块、内容、图片路径符合新版结构。
+- 创建节点和图片时 ID 由程序自动生成，创建输入类型和 GUI 状态不再暴露手填 ID。
+- 导入时只有读取到一个合法标记才成功，无标记/多个标记失败。
+- 旧版 `game-context/` 路径不再作为新建工作区的默认输出结构。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过或明确记录阻塞。
+
+### 验收结果
+
+已完成。
+
+- 工作区创建改为在用户选择的文件夹根目录写入 `.game-context-manager.yml`，不再默认生成旧版 `game-context/` 外层目录。
+- SQLite 工作区记录增加 marker 路径与主节点文件夹名；新建主节点后保存 `active_game_folder_name`，marker 回写 `main_node_id` 和 `main_node_folder_name`。
+- 节点与图片创建改为程序自动分配顺序 ID：`game_001`、`module_001`、`content_001`、`image_001`。当前旧 UI 创建表单不再显示或提交手填节点 ID。
+- 节点与图片文件路径迁移为新版结构：`<game_folder_name>/game.md`、`<game_folder_name>/modules/<module_id>/module.md`、`<game_folder_name>/modules/<module_id>/contents/<content_id>.md`、`<game_folder_name>/assets/images/...`。
+- 导入工作区时递归扫描 `.game-context-manager.yml`：无合法 marker 会失败，多个合法 marker 会失败，恰好一个合法 marker 才允许导入；marker-only 空工作区也可导入。
+- 已更新 SQLite、工作区导入、文件导出相关单元测试，覆盖新版 marker、路径和自动 ID。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm build` 已通过。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+
+---
+
+## T022 — 手动 Agent 文件导出与目录索引导出
+
+**状态**：DONE
+
+### 要做什么
+
+把旧版实时自动目录更新改为用户主动导出：
+
+- 新增或重构导出服务，支持手动导出根目录 `AGENTS.md` / `CLAUDE.md`。
+- 新增或重构目录导出服务，点击导出时生成/更新：
+  - 根目录 `manifest.yml`
+  - 主节点文件夹内 `INDEX.md`
+  - 主节点文件夹内 `image_catalog.yml`
+- 节点保存、图片上传、图片关联、节点删除时不再实时重写目录索引文件。
+- 在数据库或 UI 状态中记录“目录索引可能过期/需要导出”。
+- 更新导入逻辑，使其能读取手动导出的索引，也能在索引缺失时从节点 Markdown 与图片目录重建。
+- 更新文件导出测试，覆盖 API key 不进入任何导出文件。
+
+### 暂不做什么
+
+- 不做完整左侧 UI 导出按钮。
+- 不做索引文件详情预览。
+
+### 验收标准
+
+- 主动调用导出 AGENTS/CLAUDE 后，文件生成在工作区根目录，与主节点文件夹同级。
+- 主动调用导出当前目录后，`manifest.yml`、`INDEX.md`、`image_catalog.yml` 生成在新版目标路径。
+- 保存节点或上传图片不会自动刷新目录索引。
+- 测试覆盖目录过期状态或等价提示状态。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过或明确记录阻塞。
+
+### 验收结果
+
+已完成。
+
+- 新增显式导出能力：`exportAgentInstructionFiles` 可在工作区根目录手动生成 `AGENTS.md` / `CLAUDE.md`；`exportDirectoryIndexFiles` 可手动生成根目录 `manifest.yml`、主节点文件夹内 `INDEX.md` 和 `image_catalog.yml`。
+- 新增 `exportIpc.ts` 和 preload 安全桥：后续 UI 可主动调用“导出 AGENTS/CLAUDE”和“导出当前目录”。导出当前目录成功后会清除目录索引过期状态。
+- 节点保存、模块/内容删除、图片上传、图片删除不再自动重写 `manifest.yml`、`INDEX.md`、`image_catalog.yml`；节点 Markdown 仍在保存时写入，图片删除后仍会重写受影响节点 Markdown 以清理 `@image_id` 引用。
+- SQLite schema 升级到 v3，工作区增加 `directory_index_needs_export` 状态；节点、图片和关联变更会标记需要重新导出，手动目录导出后恢复为 false。
+- 导入逻辑仍优先读取手动导出的 `manifest.yml` / `image_catalog.yml`，索引缺失时可从 `game.md`、模块/内容 Markdown 和 `assets/images` 目录重建，并把工作区标记为需要重新导出。
+- 文件导出、SQLite、工作区导入测试已更新，覆盖保存节点不自动生成索引、主动导出生成目标文件、删除后索引保持旧内容直到再次导出、目录过期状态，以及导出文件不包含 API key。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+
+---
+
+## T023 — 登录门槛、设置模型与 API 启用逻辑清理
+
+**状态**：DONE
+
+### 要做什么
+
+实现应用级登录门槛和设置数据模型：
+
+- 应用启动时读取本地用户状态和最近登录用户。
+- 没有可恢复当前用户时，强制显示登录/创建用户弹窗；未登录时主体不可操作。
+- 设置中支持退出当前账号；退出后回到主界面必须再次弹出登录弹窗。
+- 设置中支持语言选择，下拉切换中文/英文。
+- 设置中支持 API Base URL、API Key、模型名、测试连接。
+- 从共享类型、SQLite、IPC、AI provider 和 UI 中移除“启用 AI 辅助”复选框/字段/状态文案。
+- AI 功能默认可触发；若 API 未配置、配置不完整或连接失败，在用户点击 AI 功能时提示不可用。
+
+### 暂不做什么
+
+- 不做完整两栏布局。
+- 不做 AI 新弹窗。
+- 不做复杂权限角色。
+
+### 验收标准
+
+- 无用户或无最近登录用户时，必须先登录才能操作主体。
+- 创建本地用户后可进入应用，并持久化最近登录状态。
+- 退出账号后再次要求登录。
+- 设置中可以切换语言，但主界面不再有语言切换按钮。
+- API 配置不再包含 enabled/enabledState/启用 AI 等字段或文案。
+- AI provider 测试不需要真实 API key，mock 仍可用。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过或明确记录阻塞。
+
+### 验收结果
+
+已完成。
+
+- 应用启动会读取本地用户状态；只有存在 `last_login_at` 的最近登录用户才会自动恢复。无用户或退出后无可恢复用户时，前端强制显示本地用户登录/创建弹窗，主体被遮罩不可操作。
+- 新增设置数据模型与 IPC：SQLite schema 升级到 v4，新增 `app_settings` 保存语言偏好；新增 `settingsIpc.ts` 支持读取/保存语言和退出账号。
+- 设置弹窗支持中文/英文下拉切换、退出当前账号，以及 API Base URL、API Key、模型名保存和测试连接。主界面顶部不再提供语言切换按钮。
+- 退出账号会清空所有用户最近登录状态和工作区当前用户；回到主界面后会再次弹出登录弹窗。
+- 从共享类型、API 保存输入、SQLite 最终表结构、IPC、AI 调用判断、UI 表单和测试中移除了 AI `enabled` 字段/复选框/状态文案。
+- AI 功能默认可点击；若 API 未配置或配置不完整，点击 AI 生成/汇总时提示 API 不可用。mock provider 配置仍不需要真实 API key。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+
+---
+
+## T024 — 两栏主界面壳与空工作区节点树
+
+**状态**：DONE
+
+### 要做什么
+
+重构主界面信息架构：
+
+- 移除旧顶部状态栏、旧右侧常驻辅助面板、工作空间概览、快捷操作、推进路径等冗余区域。
+- 主界面只保留左侧节点/文件树和右侧详情区。
+- 左上角放置“导入”按钮。
+- 左侧树在未打开工作区时显示灰色占位层级：创建主节点、创建模块节点、创建内容节点。
+- 右侧在未选中节点时只显示“请选择一个节点来查看”。
+- 左下角放置导出 AGENTS/CLAUDE、导出当前目录和设置入口。
+- 已打开工作区时，左侧树显示真实主节点、模块节点、内容节点、图片库和已生成索引文件。
+- UI 风格和配色保持当前方向，但布局层级必须符合 `DESIGN.md`。
+
+### 暂不做什么
+
+- 不实现所有详情表单重构。
+- 不实现图片拖拽/粘贴。
+- 不实现 AI 新弹窗。
+
+### 验收标准
+
+- 主界面没有旧三栏布局和旧右侧辅助面板。
+- 未打开工作区时左侧是灰色占位树，右侧是空状态提示。
+- 已打开工作区时左侧树层级与数据结构一致。
+- 主界面不出现“本地游戏上下文工作区”“AI 已启用”“工作空间概览”“节点树”“快捷操作”“推进路径”等旧提示。
+- 中英文 UI 不混排。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm build` 通过或明确记录阻塞。
+
+### 验收结果
+
+已完成。
+
+- 主界面从旧顶部状态栏 + 三栏工作台 + 右侧常驻辅助面板，迁移为左侧节点/文件树和右侧详情区两栏结构。
+- 左上角只保留导入入口；设置入口、导出 `AGENTS.md` / `CLAUDE.md`、导出当前目录入口已迁移到左下角。
+- 未打开工作区时，左侧显示灰色占位层级：创建主节点、创建模块节点、创建内容节点；右侧只显示“请选择一个节点来查看”。
+- 打开工作区后，左侧按层级显示真实游戏主节点、模块节点、模块下内容节点、与模块同级的图片库和图片条目；手动导出或导入识别到的 `AGENTS.md`、`CLAUDE.md`、`manifest.yml`、`INDEX.md`、`image_catalog.yml` 会显示为文件条目。
+- 右侧详情区按左侧选中项只显示一个详情：游戏、模块、内容、图片库、单张图片或索引文件；不再显示旧右侧图片预览、MD 预览、AI 辅助和基础结构常驻面板。
+- 已清理主界面旧提示文案：`本地游戏上下文工作区`、`AI 已启用`、`工作空间概览`、`节点树`、`快捷操作`、`推进路径`、`辅助面板` 不再出现在 `App.tsx`。
+- 游戏主节点项目阶段下拉改为按当前语言单语显示；设置语言下拉在中文界面显示“中文/英文”，英文界面显示“Chinese/English”。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+
+---
+
+## T025 — 节点创建弹窗、层级加号与自动选中
+
+**状态**：DONE
+
+### 要做什么
+
+按新左侧树交互实现节点创建：
+
+- 灰色主节点右侧 `+` 打开创建主节点弹窗。
+- 主节点已创建后，主节点右侧 `+` 创建模块节点。
+- 没有模块时，灰色创建模块节点右侧 `+` 创建模块节点。
+- 模块节点右侧 `+` 创建该模块下的内容节点。
+- 没有内容时，灰色创建内容节点右侧 `+` 创建内容节点。
+- 创建弹窗只显示创建所需必填信息，选填字段留到详情页。
+- 所有节点 ID 自动分配，不在弹窗中显示为可输入项。
+- 创建成功后自动选中新节点，并在右侧显示对应详情。
+
+### 暂不做什么
+
+- 不重做全部详情字段样式。
+- 不实现删除权限。
+- 不实现 AI 功能新弹窗。
+
+### 验收标准
+
+- 创建主节点、模块节点、内容节点都通过弹窗完成。
+- 弹窗不要求用户输入节点 ID。
+- 创建后左侧树立即出现新节点并自动选中。
+- 模块和内容的创建父子关系正确。
+- 必填信息缺失时无法创建，并显示当前语言错误提示。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 或针对创建逻辑的单元测试通过。
+
+### 验收结果
+
+已完成。
+
+- 左侧树支持层级 `+` 创建入口：未打开工作区时灰色主节点 `+` 打开创建主节点弹窗；已有主节点时主节点 `+` 打开创建模块弹窗；模块节点 `+` 和模块下灰色内容占位 `+` 打开对应父模块的内容创建弹窗。
+- 创建弹窗只显示当前创建所需必填字段：主节点为游戏名称、游戏版本、项目阶段；模块为模块名称；内容为标题。弹窗不显示也不要求输入节点 ID。
+- 未打开工作区时，主节点创建弹窗提交后会先让用户选择本地文件夹并创建工作区，再创建主节点；已有空工作区时直接在当前工作区创建主节点。
+- 创建成功后会立即刷新左侧树数据、自动选中新建主节点/模块/内容，并在右侧显示对应详情。
+- 旧详情页的未创建状态不再使用完整字段表单创建节点，而是提示使用左侧层级加号或按钮打开同一个创建弹窗；已选中节点的编辑保存能力保留给后续 T026 重构。
+- 必填信息缺失时会在创建弹窗中显示当前语言错误提示。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+
+---
+
+## T026 — 节点详情页、脏状态保存、图片关联与 MD 预览
+
+**状态**：DONE
+
+### 要做什么
+
+重构游戏、模块、内容节点详情页：
+
+- 选中一个节点时，右侧只显示该节点详情，不显示其他节点、图片库或全局辅助信息。
+- 详情页区分结构字段和可编辑字段。
+- 保存按钮只有在内容被修改后才可点击，保存成功后回到禁用状态。
+- 主节点主图使用图片下拉框选择，下拉项显示图片名和预览图，并提供查看详情入口。
+- 模块和内容详情的关联图片区域显示已关联图片名和预览图。
+- 模块和内容详情的关联图片区域右侧 `+` 弹出未关联图片列表，列表显示图片名和预览图。
+- 图片库为空时，关联图片区域显示“暂无图片”。
+- 每个节点详情提供 MD 预览按钮，点击后在右侧详情区域临时打开预览栏。
+- `@image_id` / `@图片名` 引用校验继续有效。
+
+### 暂不做什么
+
+- 不实现图片上传拖拽/粘贴。
+- 不实现 AI 新弹窗。
+- 不实现右键菜单。
+
+### 验收标准
+
+- 游戏、模块、内容详情都支持脏状态保存。
+- 未修改时保存按钮禁用，修改后启用。
+- 节点图片关联不再使用手填 ID 或普通复选框列表。
+- MD 预览只通过详情页按钮出现，不作为常驻右栏。
+- 保存后节点 MD 正确写入。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过或明确记录阻塞。
+
+### 验收结果
+
+已完成。
+
+- 游戏、模块、内容节点详情页支持脏状态保存：当前表单与已保存节点一致时保存按钮禁用，修改字段或图片关联后启用，保存成功后回到禁用状态。
+- 已选模块/内容详情不再显示同级节点下拉列表或新建入口，右侧保持为当前选中节点详情；结构字段仍以只读区域展示，可编辑字段在表单中编辑。
+- 游戏主节点主图改为图片选择弹层：可选择“不使用主图”或图片库图片，图片项显示预览图、图片名和 ID，并提供查看图片详情入口，不再手填主图 ID。
+- 模块和内容的关联图片区域不再使用普通复选框列表；已关联图片以预览卡片显示，可查看详情或取消关联，右侧 `+` 弹出未关联图片列表并显示预览图、图片名和 ID。
+- 图片库为空时，关联图片区域显示暂无可关联图片提示。
+- 游戏、模块、内容详情均提供 `MD 预览` 按钮，点击后仅在当前详情区域临时展开 Markdown 预览，再次点击关闭，不再作为常驻右栏。
+- `@image_id` / `@图片名` 引用校验继续由 SQLite 服务层在内容节点保存时执行。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+
+---
+
+## T027 — 左侧图片库、上传弹窗、拖拽与剪贴板粘贴
+
+**状态**：DONE
+
+### 要做什么
+
+把图片功能融入左侧树和右侧详情：
+
+- 左侧树中图片库与模块节点同级显示。
+- 图片库和图片条目使用橙色视觉标识，区别于节点青色。
+- 图片库右侧 `+` 打开上传图片弹窗。
+- 上传弹窗包含必要信息和选择图片区域。
+- 支持将图片拖拽到主界面左侧后自动打开上传弹窗并预填图片。
+- 支持将图片拖拽到上传弹窗的选择图片区域。
+- 支持在左侧栏右键粘贴或 `Ctrl+V` 粘贴剪贴板图片，并自动打开上传弹窗。
+- 图片上传后左侧图片库下显示图片名和预览小图。
+- 点击图片条目后，右侧显示图片详情和原图。
+
+### 暂不做什么
+
+- 不做 OCR。
+- 不把图片发送给 AI。
+- 不做批量上传。
+
+### 验收标准
+
+- 上传图片必须填写图片名。
+- 图片文件名根据图片名清洗重写，原始文件名保存到元数据。
+- 三种入口：按钮、拖拽、剪贴板粘贴都能进入同一个上传弹窗流程。
+- 图片详情在右侧显示，不与节点详情混排。
+- 图片路径符合新版工作区结构。
+- `corepack pnpm typecheck` 通过。
+- 无自动 E2E 时，`CURRENT_STATE.md` 记录图片上传、拖拽、粘贴人工烟测清单。
+
+### 验收结果
+
+已完成。
+
+- 左侧树中的图片库继续与模块节点同级显示，并使用橙色视觉标识；图片库右侧 `+` 会打开统一上传图片弹窗。
+- 图片条目使用橙色标识并显示图片名和预览小图；点击图片条目后，右侧只显示该图片详情和原图，不与节点详情混排。
+- 上传图片流程迁入弹窗：弹窗包含图片名、备注和选择图片区域；图片名仍为必填，提交时由 main process 按图片名清洗并重写文件名，原始文件名保存到图片元数据。
+- 支持三种入口进入同一个弹窗流程：点击图片库 `+`、将图片拖拽到左侧栏、通过左侧栏/非输入框 `Ctrl+V` 或左侧右键“粘贴图片”读取剪贴板图片。
+- 上传弹窗的选择区域支持点击选择图片和拖拽图片，并会预览当前已选择图片。
+- main process 图片上传 IPC 扩展为可接收 renderer 传入的 data URL 图片源；旧的未传 source 时系统文件选择逻辑仍保留为兼容路径。
+- 图片仍保存到新版工作区结构 `<game_folder_name>/assets/images/<image_id>__<display_name>.<ext>`，并保持目录索引只在手动导出时更新。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+- 未执行自动 E2E；图片上传、左侧拖拽、弹窗拖拽和剪贴板粘贴已在 `CURRENT_STATE.md` 记录人工烟测清单。
+
+---
+
+## T028 — 删除权限、确认弹窗与左侧右键菜单
+
+**状态**：DONE
+
+### 要做什么
+
+完善节点/图片删除和右键操作：
+
+- 每个节点右侧显示删除按钮或删除入口。
+- 删除前弹出应用内确认/取消弹窗，不再依赖浏览器原生确认框。
+- 只有当前用户与节点创建者一致时才能删除节点。
+- 只有当前用户与图片上传者一致时才能删除图片。
+- 删除模块时级联删除子内容节点，保留图片资产。
+- 删除图片时显示引用列表并二次确认，删除后从相关节点取消关联。
+- 删除后不自动重写目录索引，只标记目录需要重新导出或显示索引可能过期。
+- 左侧右键菜单支持“粘贴”和“在文件夹中打开”。
+- “在文件夹中打开”应打开当前选中节点、图片或索引文件所在目录并选中文件。
+
+### 暂不做什么
+
+- 不做回收站。
+- 不做撤销。
+- 不做历史恢复。
+
+### 验收标准
+
+- 非创建者/上传者不能删除对应资源。
+- 删除确认使用应用内弹窗。
+- 删除节点不会删除图片资产。
+- 删除图片会解除相关节点关联并清理非法引用。
+- 右键打开文件夹只允许打开当前工作区内已知路径。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过或明确记录阻塞。
+- 无自动 E2E 时，`CURRENT_STATE.md` 记录右键菜单和系统文件夹打开人工烟测清单。
+
+### 验收结果
+
+已完成。
+
+- 节点和图片删除入口改为应用内确认弹窗，不再依赖浏览器原生 `window.confirm`。
+- 游戏、模块、内容节点和图片详情/列表都提供删除入口；删除按钮会按当前用户是否为创建者/上传者禁用，main process 删除 IPC 也会执行同样权限校验。
+- 删除模块会级联删除其子内容节点、对应 Markdown 和节点图片关联，但保留图片资产。
+- 删除内容会删除对应 Markdown 和节点图片关联，但保留图片资产。
+- 删除图片会在确认弹窗中显示引用节点列表，删除后移除图片文件、取消所有节点关联，并清理内容中的非法 `@image_id` / `@图片名` 引用。
+- 删除游戏主节点会删除游戏记录、模块/内容记录与 `game.md`，但通过 SQLite v5 迁移保留图片资产元数据和图片文件，避免节点删除误删图片资产。
+- 删除后不会自动重写 `manifest.yml`、`INDEX.md`、`image_catalog.yml`，只标记目录索引需要手动重新导出，并在确认弹窗提示索引可能过期。
+- 左侧右键菜单支持“粘贴图片”和“在文件夹中打开”；打开文件夹只接受 main process 根据当前工作区内已知节点、图片或索引文件解析出的路径，并校验目标路径仍位于当前工作区内。
+- 新增共享类型、preload 桥接和 workspace IPC 支持 `openKnownWorkspaceItem`，通过 Electron `shell.showItemInFolder` 打开并选中文件。
+- 单元测试已覆盖游戏删除后图片资产保留，以及游戏文件删除只移除 `game.md` 而不删除图片文件。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+- `git diff --check` 已通过；仅输出当前工作区 LF/CRLF 转换提示。
+
+---
+
+## T033 — 左侧主节点折叠边界修正
+
+**状态**：DONE
+
+### 要做什么
+
+根据用户反馈，修正左侧游戏主节点折叠按钮的作用范围：
+
+- 点击游戏主节点折叠按钮时，只折叠模块节点、内容节点和图片库。
+- `AGENTS.md` / `CLAUDE.md` 文件分组不随游戏主节点折叠。
+- `manifest.yml` / `INDEX.md` / `image_catalog.yml` 索引文件分组不随游戏主节点折叠。
+- Agent 文件和索引文件继续使用各自分组的折叠按钮独立控制。
+
+### 暂不做什么
+
+- 不改文件导出结构。
+- 不改节点、图片或索引文件 CRUD。
+- 不改主界面整体布局。
+
+### 验收标准
+
+- 游戏主节点折叠后，模块节点、内容节点和图片库被隐藏。
+- 游戏主节点折叠后，Agent 文件分组和索引文件分组仍显示。
+- Agent 文件分组和索引文件分组仍可独立折叠/展开。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过。
+- `corepack pnpm build` 通过。
+- `corepack pnpm lint` 若仍未配置，明确记录。
+
+### 验收结果
+
+已完成。
+
+- `WorkspaceTree` 中 Agent 文件和索引文件分组已移出 `isGameCollapsed` 条件，不再随游戏主节点折叠隐藏。
+- 游戏主节点折叠按钮现在只影响模块/内容区域和图片库区域；Agent 文件和索引文件继续由各自分组折叠状态控制。
+- 主节点折叠按钮在已有主节点时可用，可收起模块占位/模块内容和图片库栏位。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+- `git diff --check` 已通过；仅输出当前工作区 LF/CRLF 转换提示。
+
+---
+
+## T032 — AGENTS 与 CLAUDE 指令完整度对齐
+
+**状态**：DONE
+
+### 要做什么
+
+根据用户反馈，`AGENTS.md` 和 `CLAUDE.md` 都需要是完整版下游 Agent 指令，不能让 `CLAUDE.md` 比 `AGENTS.md` 少关键规则。
+
+需要包括：
+
+- `CLAUDE.md` 与 `AGENTS.md` 保持同等完整章节。
+- 差异仅保留在首段身份说明和必要措辞适配。
+- 示例工作区同步更新。
+- 测试覆盖 `CLAUDE.md` 的完整章节。
+
+### 暂不做什么
+
+- 不改 GUI 交互。
+- 不改 `manifest.yml`、`INDEX.md` 或 `image_catalog.yml` 的结构。
+- 不引入新的 Agent 类型。
+
+### 验收标准
+
+- 手动导出的英文和中文 `CLAUDE.md` 包含任务定位、读取顺序、上下文选择、结构化字段、常见任务处理方式、依据与不确定性、边界。
+- 示例工作区 `CLAUDE.md` 为完整版。
+- 单元测试覆盖 `CLAUDE.md` 的完整关键章节。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过。
+- `corepack pnpm build` 通过。
+- `corepack pnpm lint` 若仍未配置，明确记录。
+
+### 验收结果
+
+已完成。
+
+- `fileExportService` 生成的英文 `CLAUDE.md` 已扩展为与 `AGENTS.md` 同等完整的任务手册，包含 `Mission`、`Read Order`、`Context Selection`、`Structured Fields`、`Common Task Playbooks`、`Evidence And Uncertainty` 和 `Boundaries`。
+- `fileExportService` 生成的中文 `CLAUDE.md` 已扩展为与 `AGENTS.md` 同等完整的任务手册，包含“任务定位”“读取顺序”“上下文选择规则”“结构化字段”“常见任务处理方式”“依据与不确定性”“边界”。
+- 示例工作区 `examples/sample-workspace/CLAUDE.md` 已通过导出服务重新生成。
+- `fileExportService.test.ts` 已新增对中文 `CLAUDE.md` 完整章节的断言。
+- `sampleWorkspace.test.ts` 已新增对示例 `CLAUDE.md` 中 `Common Task Playbooks` 和 `Boundaries` 的断言。
+- `DESIGN.md` 已明确 `AGENTS.md` 和 `CLAUDE.md` 必须是同等完整的任务手册，只在身份说明和必要措辞上适配不同 Agent。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+- `git diff --check` 已通过；仅输出当前工作区 LF/CRLF 转换提示。
+- 未执行自动 E2E；右键菜单和系统文件夹打开人工烟测清单已记录到 `CURRENT_STATE.md`。
+
+---
+
+## T029 — 节点详情内 AI 编辑弹窗与父节点汇总
+
+**状态**：DONE
+
+### 要做什么
+
+把 AI 功能从旧辅助面板迁入节点详情：
+
+- 每个节点详情底部显示三个不同颜色按钮：AI 辅助增加、AI 辅助修改、AI 辅助润色。
+- 点击按钮打开 AI 弹窗。
+- 弹窗包含字段多选下拉框、已选字段 tag、用户指令输入框、生成按钮。
+- 每个 tag 显示字段名和 `x` 删除入口。
+- 生成后在同一弹窗下半部分展示结果，不覆盖原表单，不打开第二个弹窗。
+- 结果只对比用户选择的字段。
+- AI 输出解析为结构化字段数据，用户可编辑生成结果。
+- 用户可取消、确认覆盖，或修改字段/指令再次生成。
+- AI 修改模式必须确保只修改用户选择的字段。
+- 模块节点详情底部提供“从子节点汇总”。
+- 游戏主节点详情底部提供“从模块汇总”。
+- 汇总使用同样的对比、编辑、取消、确认覆盖流程。
+- API 未配置或连接失败时，点击 AI 功能提示不可用。
+
+### 暂不做什么
+
+- 不做整节点自动创建。
+- 不做批量 AI。
+- 不做自动定时汇总。
+
+### 验收标准
+
+- AI 增加/修改/润色均可在 mock provider 下走完整预览确认流程。
+- 选择多字段时，结果区域展示所有被选字段的原文、新文和差异。
+- 未确认前不会覆盖节点字段。
+- 确认覆盖后更新最后编辑者并写入节点 MD。
+- 模块汇总和游戏汇总使用同一确认逻辑。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过或明确记录阻塞。
+
+### 验收结果
+
+已完成。
+
+- 游戏、模块、内容详情页底部新增三个不同颜色的 AI 辅助按钮：增加、修改、润色；游戏详情额外提供“从模块汇总”，模块详情额外提供“从子节点汇总”。
+- 点击 AI 入口会打开节点详情内的应用弹窗；弹窗支持字段多选下拉、已选字段 tag、tag `x` 移除、用户指令输入和生成按钮。
+- 字段级 AI 增加/修改/润色在 mock provider 下支持多字段生成；每个被选字段都会展示原文、新文和差异，且生成结果可在弹窗内编辑。
+- 未点击“确认覆盖”前不会写回节点表单；确认后会通过现有节点保存 IPC 更新最后编辑者并写入对应节点 MD。
+- AI 修改模式只对用户选择的字段发起生成和确认覆盖，不会改动未选择字段。
+- 模块汇总和游戏汇总已迁入同一个弹窗流程，支持选择汇总字段、展示原文/新文/差异、编辑候选、取消或确认覆盖。
+- API 未配置或配置不完整时，点击 AI 功能会在弹窗内提示不可用；真实 provider 连接或生成失败时会显示错误，不会覆盖节点字段。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+- `git diff --check` 已通过；仅输出当前工作区 LF/CRLF 转换提示。
+- 未执行自动 E2E；AI 弹窗与确认覆盖流程已在 `CURRENT_STATE.md` 记录人工烟测清单。
+
+---
+
+## T030 — 语言与旧 UI 清理、示例迁移和完整烟测
+
+**状态**：DONE
+
+### 要做什么
+
+完成本轮重构收尾：
+
+- 清理所有旧版冗余文案和入口，包括但不限于：
+  - 本地游戏上下文工作区
+  - AI 已启用
+  - 工作空间概览
+  - 节点树作为面板标题
+  - 快捷操作
+  - 推进路径
+  - 主界面 API 配置
+  - 主界面语言切换
+  - 右侧辅助面板
+- 检查中英文文案表，确保同一 UI 状态不会中英文并列。
+- 更新 `examples/sample-workspace/` 到新版工作区结构。
+- 更新 README、示例 README、下游 AGENTS/CLAUDE 模板说明。
+- 更新或补充测试，覆盖新版工作区结构、手动导出、API key 安全、示例 Agent 可读性。
+- 执行完整可用检查和 GUI 人工烟测记录。
+
+### 暂不做什么
+
+- 不做 OS 安装包签名。
+- 不做云同步或多人协作。
+- 不做回收站/撤销。
+
+### 验收标准
+
+- 旧 UI 文案和旧辅助面板相关入口从主界面移除。
+- 中文模式全中文，英文模式全英文。
+- 示例工作区符合新版目标结构，并可被测试读取。
+- Agent 读取说明与新版文件结构一致。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过。
+- `corepack pnpm build` 通过。
+- `corepack pnpm lint` 若仍未配置，明确记录。
+- `CURRENT_STATE.md` 包含完整 GUI 人工烟测清单与结果。
+
+### 验收结果
+
+已完成。
+
+- 清理了当前代码和文案表中的旧 UI 概念残留：主界面不再使用旧“节点树 / 快捷操作 / Assistant panel / Local game context workspace”等旧式主界面文案。
+- 工作区创建/导入摘要类型与 `workspaceService` 已移除旧 `USAGE.md`、工作区 README、`games/` 字段和死模板，当前只保留 marker、AGENTS、CLAUDE、manifest 等实际结构说明。
+- `examples/sample-workspace/` 已迁移到新版 marker-based 结构：根目录包含 `.game-context-manager.yml`、`AGENTS.md`、`CLAUDE.md`、`manifest.yml`，主节点目录为 `starfall_workshop/`。
+- 示例模块和内容已迁移到目标结构：`modules/<module_id>/module.md` 与 `modules/<module_id>/contents/<content_id>.md`。
+- 示例 `manifest.yml`、`INDEX.md`、`image_catalog.yml`、示例 README、下游 `AGENTS.md` / `CLAUDE.md` 均已更新到新版路径和读取说明，不再依赖 `USAGE.md`。
+- 根 `README.md` 已更新为当前 T030 后状态，移除“旧 MVP / 待迁移”的过期说明，并补充新版示例结构。
+- `sampleWorkspace.test.ts` 已更新，覆盖新版示例 marker、manifest 路径、模块/内容嵌套路径、示例可被导入服务读取，以及示例文件不包含 API key。
+- `domainTypes.test.ts` 已同步新版工作区路径示例。
+- `AGENTS.md` 已更新示例目录说明，明确当前新建工作区、导入、测试和示例均以 marker-based 结构为准。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+- `git diff --check` 已通过；仅输出当前工作区 LF/CRLF 转换提示。
+- 未执行自动 E2E；完整 GUI 人工烟测清单与当前命令级检查结果已记录到 `CURRENT_STATE.md`。
+
+---
+
+## T031 — 下游 Agent 指令与目录索引重构
+
+**状态**：DONE
+
+### 要做什么
+
+根据用户指定方向，重构软件生成的 `AGENTS.md`、`CLAUDE.md`、`INDEX.md`、`manifest.yml` 和 `image_catalog.yml`，让下游 Agent 更适合处理游戏运营、测试、客服、评测、调优讨论、UI 预览图方向、市场/竞品/用户分析和游戏机制问答等任务。
+
+需要包括：
+
+- `AGENTS.md` 面向 Codex/通用 Agent，`CLAUDE.md` 面向 Claude Code / WorkBuddy 等 Claude 系 Agent。
+- Agent 文件说明如何根据任务选择上下文：默认读取游戏主节点；内容节点任务读取父模块；图片/UI 任务读取相关图片；维度型问题优先查对应结构化字段。
+- Agent 文件说明 @ 节点文件、@ 图片、图片反查、外部资料查询、依据标注、推测和未知信息处理规则。
+- `INDEX.md` 或索引文件中加入三层节点结构化字段地图，说明主节点、模块节点、内容节点分别有哪些字段。
+- `image_catalog.yml` 支持根据图片反查相关节点文件。
+- 更新示例工作区和测试。
+
+### 暂不做什么
+
+- 不改 GUI 交互。
+- 不引入联网能力或外部数据源。
+- 不改变节点 CRUD、AI 调用或数据库 schema。
+
+### 验收标准
+
+- 手动导出的 `AGENTS.md` / `CLAUDE.md` 包含新的任务定位、上下文选择、图片读取、维度字段查询和依据/不确定性规则。
+- 手动导出的 `INDEX.md` 包含三层节点字段地图。
+- 手动导出的 `manifest.yml` 包含机器可读 `field_schema`。
+- 手动导出的 `image_catalog.yml` 包含可反查节点文件的 `linked_node_files`。
+- 示例工作区同步为新导出格式。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过。
+- `corepack pnpm build` 通过。
+- `corepack pnpm lint` 若仍未配置，明确记录。
+
+### 验收结果
+
+已完成。
+
+- 重构 `fileExportService` 生成的中英文 `AGENTS.md` 和 `CLAUDE.md` 模板，加入任务定位、读取顺序、上下文选择规则、结构化字段使用方式、常见任务处理方式、依据标注和不确定性规则。
+- `INDEX.md` 新增“如何使用本索引 / How To Use This Index”和三层节点结构化字段地图，覆盖游戏主节点、模块节点、内容/阶段/体验节点的字段、位置和适用场景。
+- `manifest.yml` 新增 `field_schema`、`task_context_entries`、`workspace.agents`、`workspace.claude` 和 `game.image_catalog`，并在图片条目中加入 `linked_node_files`。
+- `image_catalog.yml` 保留 `linked_nodes`，并新增 `linked_node_files`，可直接列出图片关联节点的类型、ID、名称和路径；游戏主图也会加入图片反查关系。
+- 示例工作区 `examples/sample-workspace/` 已用导出服务重新生成 Agent 文件、节点 Markdown、`manifest.yml`、`INDEX.md` 和 `image_catalog.yml`。
+- 删除了 `workspaceService.ts` 中未使用的旧版下游 Agent 常量，避免后续误用旧模板。
+- `fileExportService.test.ts` 已覆盖新 Agent 模板关键规则、字段地图、manifest `field_schema` 和图片 `linked_node_files`。
+- `sampleWorkspace.test.ts` 已覆盖示例工作区的新 `field_schema`、`task_context_entries`、`linked_node_files` 和索引字段地图。
+- `DESIGN.md` 已补充下游 Agent 指令、字段 schema 和图片反查字段的设计说明。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+- `git diff --check` 已通过；仅输出当前工作区 LF/CRLF 转换提示。

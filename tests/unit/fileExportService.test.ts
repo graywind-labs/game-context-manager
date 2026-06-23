@@ -5,9 +5,12 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 import {
   deleteContentNodeFiles,
+  deleteGameNodeFiles,
   deleteImageAssetFiles,
   deleteModuleNodeFiles,
+  exportAgentInstructionFiles,
   exportContentNodeFiles,
+  exportDirectoryIndexFiles,
   exportGameNodeFiles,
   exportModuleNodeFiles
 } from '../../src/main/services/fileExportService.js';
@@ -15,12 +18,12 @@ import { createWorkspaceStructure } from '../../src/main/services/workspaceServi
 import {
   NodeType,
   ProjectStage,
+  type ContentNode,
   type GameNode,
   type ImageAsset,
   type LocalUser,
   type ModuleNode,
   type NodeImageLink,
-  type ContentNode,
   type WorkspaceConfig
 } from '../../src/shared/index.js';
 
@@ -35,6 +38,8 @@ try {
     id: workspaceSummary.id,
     rootPath: workspaceSummary.rootPath,
     contextPath: workspaceSummary.contextPath,
+    markerPath: workspaceSummary.markerPath,
+    activeGameFolderName: '使命防线游戏上下文',
     schemaVersion: workspaceSummary.schemaVersion,
     createdAt: workspaceSummary.createdAt,
     updatedAt: workspaceSummary.updatedAt
@@ -67,10 +72,10 @@ try {
     updatedAt: '2026-06-18T12:30:00.000Z'
   };
   const image: ImageAsset = {
-    id: 'img_main_screen_1234abcd',
+    id: 'image_001',
     displayName: '主界面截图',
     originalFileName: '乱码文件名###.png',
-    relativePath: 'games/mission_frontline/assets/images/img_main_screen_1234abcd__main-screen.png',
+    relativePath: '使命防线游戏上下文/assets/images/image_001__main-screen.png',
     fileType: 'png',
     gameId: game.id,
     uploaderId: 'user_a',
@@ -79,7 +84,7 @@ try {
   };
   const module: ModuleNode = {
     nodeType: NodeType.Module,
-    id: 'gacha_workshop',
+    id: 'module_001',
     gameId: game.id,
     gameVersion: game.gameVersion,
     moduleName: '生产线/开箱',
@@ -96,14 +101,9 @@ try {
     createdAt: '2026-06-18T12:10:00.000Z',
     updatedAt: '2026-06-18T12:45:00.000Z'
   };
-  const imageLink: NodeImageLink = {
-    nodeType: NodeType.Module,
-    nodeId: module.id,
-    imageId: image.id
-  };
   const content: ContentNode = {
     nodeType: NodeType.Content,
-    id: 'day1_first_gacha',
+    id: 'content_001',
     gameId: game.id,
     gameVersion: game.gameVersion,
     moduleId: module.id,
@@ -122,60 +122,39 @@ try {
     createdAt: '2026-06-18T12:20:00.000Z',
     updatedAt: '2026-06-18T12:50:00.000Z'
   };
-  const contentImageLink: NodeImageLink = {
-    nodeType: NodeType.Content,
-    nodeId: content.id,
-    imageId: image.id
-  };
+  const imageLinks: NodeImageLink[] = [
+    {
+      nodeType: NodeType.Module,
+      nodeId: module.id,
+      imageId: image.id
+    },
+    {
+      nodeType: NodeType.Content,
+      nodeId: content.id,
+      imageId: image.id
+    }
+  ];
 
-  const markdown = exportGameNodeFiles({
+  const gameMarkdown = exportGameNodeFiles({
     workspace,
     game,
     users,
-    images: [image],
     now: new Date('2026-06-18T12:31:00.000Z')
   });
 
-  const gameDirectory = join(tempDir, 'game-context', 'games', game.id);
+  const gameDirectory = join(tempDir, '使命防线游戏上下文');
   assert.equal(existsSync(join(gameDirectory, 'game.md')), true);
-  assert.equal(existsSync(join(gameDirectory, 'INDEX.md')), true);
   assert.equal(existsSync(join(gameDirectory, 'modules')), true);
-  assert.equal(existsSync(join(gameDirectory, 'contents')), true);
   assert.equal(existsSync(join(gameDirectory, 'assets', 'images')), true);
-  assert.equal(existsSync(join(gameDirectory, 'image_catalog.yml')), true);
-  assert.match(markdown, /node_type: game/);
-  assert.match(markdown, /# 使命防线/);
-  assert.match(markdown, /creator: 策划 A/);
-  assert.match(markdown, /last_editor: Designer B/);
-  assert.match(markdown, /## 当前主要问题\n\n/);
-  assert.match(readFileSync(join(gameDirectory, 'INDEX.md'), 'utf8'), /img_main_screen_1234abcd/);
-
-  const imageCatalog = parse(readFileSync(join(gameDirectory, 'image_catalog.yml'), 'utf8')) as {
-    images: Record<string, { name: string; original_file_name: string; path: string; linked_nodes: string[] }>;
-  };
-
-  assert.equal(imageCatalog.images[image.id].name, image.displayName);
-  assert.equal(imageCatalog.images[image.id].original_file_name, '乱码文件名###.png');
-  assert.equal(imageCatalog.images[image.id].path, image.relativePath);
-  assert.deepEqual(imageCatalog.images[image.id].linked_nodes, []);
-
-  const manifest = parse(readFileSync(join(tempDir, 'game-context', 'manifest.yml'), 'utf8')) as {
-    workspace: { generated_at: string };
-    game: { node_id: string; name: string; version: string; path: string; index: string };
-    modules: Record<string, unknown>;
-    images: Record<string, { name: string; path: string; linked_nodes: string[] }>;
-  };
-
-  assert.equal(manifest.workspace.generated_at, '2026-06-18T12:31:00.000Z');
-  assert.equal(manifest.game.node_id, game.id);
-  assert.equal(manifest.game.name, game.gameName);
-  assert.equal(manifest.game.version, game.gameVersion);
-  assert.equal(manifest.game.path, 'games/mission_frontline/game.md');
-  assert.equal(manifest.game.index, 'games/mission_frontline/INDEX.md');
-  assert.deepEqual(manifest.modules, {});
-  assert.equal(manifest.images[image.id].name, image.displayName);
-  assert.equal(manifest.images[image.id].path, image.relativePath);
-  assert.deepEqual(manifest.images[image.id].linked_nodes, []);
+  assert.equal(existsSync(join(gameDirectory, 'INDEX.md')), false);
+  assert.equal(existsSync(join(gameDirectory, 'image_catalog.yml')), false);
+  assert.equal(existsSync(join(tempDir, 'manifest.yml')), false);
+  assert.equal(existsSync(join(tempDir, 'AGENTS.md')), false);
+  assert.equal(existsSync(join(tempDir, 'CLAUDE.md')), false);
+  assert.match(gameMarkdown, /node_type: game/);
+  assert.match(gameMarkdown, /creator: 策划 A/);
+  assert.match(gameMarkdown, /## 当前主要问题\n\n/);
+  assert.doesNotMatch(gameMarkdown, /## 补充说明/);
 
   const moduleMarkdown = exportModuleNodeFiles({
     workspace,
@@ -184,31 +163,14 @@ try {
     modules: [module],
     users,
     images: [image],
-    imageLinks: [imageLink],
+    imageLinks,
     now: new Date('2026-06-18T12:46:00.000Z')
   });
 
-  assert.equal(existsSync(join(gameDirectory, 'modules', 'gacha_workshop.md')), true);
+  assert.equal(existsSync(join(gameDirectory, 'modules', module.id, 'module.md')), true);
   assert.match(moduleMarkdown, /node_type: module/);
-  assert.match(moduleMarkdown, /module_name: 生产线\/开箱/);
-  assert.match(moduleMarkdown, /images:\n  - img_main_screen_1234abcd/);
-  assert.match(moduleMarkdown, /## 关联截图\n\n- @img_main_screen_1234abcd: 主界面截图/);
-  assert.match(readFileSync(join(gameDirectory, 'INDEX.md'), 'utf8'), /modules\/gacha_workshop.md/);
-
-  const updatedImageCatalog = parse(readFileSync(join(gameDirectory, 'image_catalog.yml'), 'utf8')) as {
-    images: Record<string, { linked_nodes: string[] }>;
-  };
-  assert.deepEqual(updatedImageCatalog.images[image.id].linked_nodes, ['module:gacha_workshop']);
-
-  const updatedManifest = parse(readFileSync(join(tempDir, 'game-context', 'manifest.yml'), 'utf8')) as {
-    modules: Record<string, { name: string; path: string; images: string[] }>;
-    images: Record<string, { linked_nodes: string[] }>;
-  };
-
-  assert.equal(updatedManifest.modules[module.id].name, module.moduleName);
-  assert.equal(updatedManifest.modules[module.id].path, 'games/mission_frontline/modules/gacha_workshop.md');
-  assert.deepEqual(updatedManifest.modules[module.id].images, [image.id]);
-  assert.deepEqual(updatedManifest.images[image.id].linked_nodes, ['module:gacha_workshop']);
+  assert.match(moduleMarkdown, /images:\n  - image_001/);
+  assert.equal(existsSync(join(gameDirectory, 'INDEX.md')), false);
 
   const contentMarkdown = exportContentNodeFiles({
     workspace,
@@ -218,54 +180,124 @@ try {
     contents: [content],
     users,
     images: [image],
-    imageLinks: [imageLink, contentImageLink],
+    imageLinks,
     now: new Date('2026-06-18T12:51:00.000Z')
   });
 
-  assert.equal(existsSync(join(gameDirectory, 'contents', 'day1_first_gacha.md')), true);
+  assert.equal(existsSync(join(gameDirectory, 'modules', module.id, 'contents', `${content.id}.md`)), true);
   assert.match(contentMarkdown, /node_type: content/);
-  assert.match(contentMarkdown, /module_id: gacha_workshop/);
-  assert.match(contentMarkdown, /account_day: "1"/);
-  assert.match(contentMarkdown, /images:\n  - img_main_screen_1234abcd/);
-  assert.match(contentMarkdown, /## 账号状态\n\n- 创角天数：1/);
-  assert.match(contentMarkdown, /玩家在主界面看到 @img_main_screen_1234abcd 后进入生产线。/);
-  assert.match(readFileSync(join(gameDirectory, 'INDEX.md'), 'utf8'), /contents\/day1_first_gacha.md/);
+  assert.match(contentMarkdown, /玩家在主界面看到 @image_001 后进入生产线。/);
+  assert.equal(existsSync(join(tempDir, 'manifest.yml')), false);
 
-  const contentImageCatalog = parse(readFileSync(join(gameDirectory, 'image_catalog.yml'), 'utf8')) as {
-    images: Record<string, { linked_nodes: string[] }>;
+  const agentPaths = exportAgentInstructionFiles({ workspace, language: 'zh' });
+  assert.deepEqual(agentPaths.sort(), [join(tempDir, 'AGENTS.md'), join(tempDir, 'CLAUDE.md')].sort());
+  assert.match(readFileSync(join(tempDir, 'AGENTS.md'), 'utf8'), /manifest\.yml/);
+  assert.match(readFileSync(join(tempDir, 'AGENTS.md'), 'utf8'), /上下文选择规则/);
+  assert.match(readFileSync(join(tempDir, 'AGENTS.md'), 'utf8'), /游戏运营、测试、客服、评测/);
+  assert.match(readFileSync(join(tempDir, 'CLAUDE.md'), 'utf8'), /image_catalog\.yml/);
+  assert.match(readFileSync(join(tempDir, 'CLAUDE.md'), 'utf8'), /WorkBuddy/);
+  assert.match(readFileSync(join(tempDir, 'CLAUDE.md'), 'utf8'), /上下文选择规则/);
+  assert.match(readFileSync(join(tempDir, 'CLAUDE.md'), 'utf8'), /常见任务处理方式/);
+  assert.match(readFileSync(join(tempDir, 'CLAUDE.md'), 'utf8'), /## 边界/);
+
+  const indexPaths = exportDirectoryIndexFiles({
+    workspace,
+    game,
+    modules: [module],
+    contents: [content],
+    users,
+    images: [image],
+    imageLinks,
+    language: 'zh',
+    now: new Date('2026-06-18T13:00:00.000Z')
+  });
+
+  assert.deepEqual(indexPaths.sort(), [
+    join(tempDir, 'manifest.yml'),
+    join(gameDirectory, 'INDEX.md'),
+    join(gameDirectory, 'image_catalog.yml')
+  ].sort());
+  assert.match(readFileSync(join(gameDirectory, 'INDEX.md'), 'utf8'), /modules\/module_001\/module.md/);
+  assert.match(readFileSync(join(gameDirectory, 'INDEX.md'), 'utf8'), /modules\/module_001\/contents\/content_001.md/);
+  assert.match(readFileSync(join(gameDirectory, 'INDEX.md'), 'utf8'), /本文件由游戏上下文管理器自动生成。/);
+  assert.match(readFileSync(join(gameDirectory, 'INDEX.md'), 'utf8'), /## 模块/);
+  assert.match(readFileSync(join(gameDirectory, 'INDEX.md'), 'utf8'), /## 结构化字段地图/);
+  assert.match(readFileSync(join(gameDirectory, 'INDEX.md'), 'utf8'), /`cumulativePaymentAmount`/);
+
+  const imageCatalog = parse(readFileSync(join(gameDirectory, 'image_catalog.yml'), 'utf8')) as {
+    language: string;
+    description: string;
+    images: Record<
+      string,
+      {
+        name: string;
+        original_file_name: string;
+        path: string;
+        linked_nodes: string[];
+        linked_node_files: Array<{ node_type: string; node_id: string; name: string; path: string }>;
+      }
+    >;
   };
-  assert.deepEqual(contentImageCatalog.images[image.id].linked_nodes, ['module:gacha_workshop', 'content:day1_first_gacha']);
 
-  const contentManifest = parse(readFileSync(join(tempDir, 'game-context', 'manifest.yml'), 'utf8')) as {
+  assert.equal(imageCatalog.language, 'zh');
+  assert.match(imageCatalog.description, /图片目录/);
+  assert.equal(imageCatalog.images[image.id].name, image.displayName);
+  assert.equal(imageCatalog.images[image.id].original_file_name, '乱码文件名###.png');
+  assert.equal(imageCatalog.images[image.id].path, image.relativePath);
+  assert.deepEqual(imageCatalog.images[image.id].linked_nodes, ['module:module_001', 'content:content_001']);
+  assert.deepEqual(imageCatalog.images[image.id].linked_node_files.map((entry) => entry.path), [
+    '使命防线游戏上下文/modules/module_001/module.md',
+    '使命防线游戏上下文/modules/module_001/contents/content_001.md'
+  ]);
+
+  const manifest = parse(readFileSync(join(tempDir, 'manifest.yml'), 'utf8')) as {
+    workspace: { generated_at: string; language: string; agents: string; claude: string; description: string };
+    game: { node_id: string; name: string; version: string; path: string; index: string; image_catalog: string; project_stage_label: string };
+    modules: Record<string, { name: string; path: string; images: string[] }>;
     contents: Record<string, { title: string; module_id: string; path: string; images: string[] }>;
-    images: Record<string, { linked_nodes: string[] }>;
+    images: Record<string, { name: string; path: string; linked_nodes: string[]; linked_node_files: Array<{ path: string }> }>;
+    field_schema: Record<string, Array<{ field: string; label: string; location: string; use_for: string }>>;
+    task_context_entries: { start_here: string; image_catalog: string };
   };
 
-  assert.equal(contentManifest.contents[content.id].title, content.title);
-  assert.equal(contentManifest.contents[content.id].module_id, module.id);
-  assert.equal(contentManifest.contents[content.id].path, 'games/mission_frontline/contents/day1_first_gacha.md');
-  assert.deepEqual(contentManifest.contents[content.id].images, [image.id]);
-  assert.deepEqual(contentManifest.images[image.id].linked_nodes, ['module:gacha_workshop', 'content:day1_first_gacha']);
+  assert.equal(manifest.workspace.generated_at, '2026-06-18T13:00:00.000Z');
+  assert.equal(manifest.workspace.language, 'zh');
+  assert.equal(manifest.workspace.agents, 'AGENTS.md');
+  assert.equal(manifest.workspace.claude, 'CLAUDE.md');
+  assert.match(manifest.workspace.description, /机器可读目录/);
+  assert.equal(manifest.game.node_id, game.id);
+  assert.equal(manifest.game.project_stage_label, '测试');
+  assert.equal(manifest.game.path, '使命防线游戏上下文/game.md');
+  assert.equal(manifest.game.index, '使命防线游戏上下文/INDEX.md');
+  assert.equal(manifest.game.image_catalog, '使命防线游戏上下文/image_catalog.yml');
+  assert.equal(manifest.modules[module.id].path, '使命防线游戏上下文/modules/module_001/module.md');
+  assert.equal(manifest.contents[content.id].path, '使命防线游戏上下文/modules/module_001/contents/content_001.md');
+  assert.deepEqual(manifest.images[image.id].linked_nodes, ['module:module_001', 'content:content_001']);
+  assert.deepEqual(manifest.images[image.id].linked_node_files.map((entry) => entry.path), [
+    '使命防线游戏上下文/modules/module_001/module.md',
+    '使命防线游戏上下文/modules/module_001/contents/content_001.md'
+  ]);
+  assert.equal(manifest.field_schema.game.some((field) => field.field === 'coreGameplay'), true);
+  assert.equal(manifest.field_schema.content.some((field) => field.field === 'cumulativePaymentAmount'), true);
+  assert.equal(manifest.task_context_entries.start_here, 'AGENTS.md');
+  assert.equal(manifest.task_context_entries.image_catalog, '使命防线游戏上下文/image_catalog.yml');
 
   deleteContentNodeFiles({
     workspace,
     game,
     contentId: content.id,
+    moduleId: module.id,
     modules: [module],
     contents: [],
     users,
     images: [image],
-    imageLinks: [imageLink],
-    now: new Date('2026-06-18T13:00:00.000Z')
+    imageLinks: [imageLinks[0]],
+    now: new Date('2026-06-18T13:10:00.000Z')
   });
 
-  assert.equal(existsSync(join(gameDirectory, 'contents', 'day1_first_gacha.md')), false);
-  const manifestAfterContentDelete = parse(readFileSync(join(tempDir, 'game-context', 'manifest.yml'), 'utf8')) as {
-    contents: Record<string, unknown>;
-    images: Record<string, { linked_nodes: string[] }>;
-  };
-  assert.deepEqual(manifestAfterContentDelete.contents, {});
-  assert.deepEqual(manifestAfterContentDelete.images[image.id].linked_nodes, ['module:gacha_workshop']);
+  assert.equal(existsSync(join(gameDirectory, 'modules', module.id, 'contents', `${content.id}.md`)), false);
+  const staleManifestAfterContentDelete = readFileSync(join(tempDir, 'manifest.yml'), 'utf8');
+  assert.match(staleManifestAfterContentDelete, /content_001/);
 
   exportContentNodeFiles({
     workspace,
@@ -275,8 +307,8 @@ try {
     contents: [content],
     users,
     images: [image],
-    imageLinks: [imageLink, contentImageLink],
-    now: new Date('2026-06-18T13:05:00.000Z')
+    imageLinks,
+    now: new Date('2026-06-18T13:15:00.000Z')
   });
   deleteModuleNodeFiles({
     workspace,
@@ -288,47 +320,137 @@ try {
     users,
     images: [image],
     imageLinks: [],
-    now: new Date('2026-06-18T13:10:00.000Z')
+    now: new Date('2026-06-18T13:20:00.000Z')
   });
 
-  assert.equal(existsSync(join(gameDirectory, 'modules', 'gacha_workshop.md')), false);
-  assert.equal(existsSync(join(gameDirectory, 'contents', 'day1_first_gacha.md')), false);
-  const manifestAfterModuleDelete = parse(readFileSync(join(tempDir, 'game-context', 'manifest.yml'), 'utf8')) as {
-    modules: Record<string, unknown>;
-    contents: Record<string, unknown>;
-    images: Record<string, { linked_nodes: string[] }>;
-  };
-  assert.deepEqual(manifestAfterModuleDelete.modules, {});
-  assert.deepEqual(manifestAfterModuleDelete.contents, {});
-  assert.deepEqual(manifestAfterModuleDelete.images[image.id].linked_nodes, []);
+  assert.equal(existsSync(join(gameDirectory, 'modules', module.id, 'module.md')), false);
+  assert.equal(existsSync(join(gameDirectory, 'modules', module.id, 'contents', `${content.id}.md`)), false);
+  assert.equal(existsSync(join(gameDirectory, 'modules', module.id)), false);
+  assert.match(readFileSync(join(tempDir, 'manifest.yml'), 'utf8'), /module_001/);
+
+  exportModuleNodeFiles({
+    workspace,
+    game,
+    module,
+    modules: [module],
+    users,
+    images: [image],
+    imageLinks
+  });
+  exportContentNodeFiles({
+    workspace,
+    game,
+    content,
+    modules: [module],
+    contents: [content],
+    users,
+    images: [image],
+    imageLinks
+  });
 
   const imagePath = join(workspace.contextPath, image.relativePath);
   writeFileSync(imagePath, 'fake image');
   deleteImageAssetFiles({
     workspace,
-    game,
+    game: { ...game, coverImageId: undefined },
     deletedImage: image,
     modules: [{ ...module, imageIds: [] }],
     contents: [{ ...content, imageIds: [], processDescription: '玩家在主界面看到后进入生产线。' }],
     users,
     images: [],
     imageLinks: [],
-    now: new Date('2026-06-18T13:15:00.000Z')
+    now: new Date('2026-06-18T13:25:00.000Z')
   });
 
   assert.equal(existsSync(imagePath), false);
-  assert.doesNotMatch(readFileSync(join(gameDirectory, 'contents', 'day1_first_gacha.md'), 'utf8'), /@img_main_screen_1234abcd/);
-  const imageCatalogAfterDelete = parse(readFileSync(join(gameDirectory, 'image_catalog.yml'), 'utf8')) as {
-    images: Record<string, unknown>;
-  };
-  assert.deepEqual(imageCatalogAfterDelete.images, {});
+  assert.doesNotMatch(
+    readFileSync(join(gameDirectory, 'modules', module.id, 'contents', `${content.id}.md`), 'utf8'),
+    /@image_001/
+  );
+  assert.match(readFileSync(join(gameDirectory, 'image_catalog.yml'), 'utf8'), /image_001/);
+
+  exportGameNodeFiles({
+    workspace,
+    game,
+    users,
+    images: [image],
+    modules: [module],
+    contents: [content],
+    imageLinks
+  });
+  exportModuleNodeFiles({
+    workspace,
+    game,
+    module,
+    modules: [module],
+    users,
+    images: [image],
+    imageLinks
+  });
+  exportContentNodeFiles({
+    workspace,
+    game,
+    content,
+    modules: [module],
+    contents: [content],
+    users,
+    images: [image],
+    imageLinks
+  });
+  writeFileSync(imagePath, 'fake image after game delete');
+  deleteGameNodeFiles({
+    workspace,
+    game
+  });
+  assert.equal(existsSync(gameDirectory), false);
+  assert.equal(existsSync(imagePath), false);
+  exportGameNodeFiles({
+    workspace,
+    game,
+    users,
+    images: [image],
+    modules: [module],
+    contents: [content],
+    imageLinks
+  });
+  exportModuleNodeFiles({
+    workspace,
+    game,
+    module,
+    modules: [module],
+    users,
+    images: [image],
+    imageLinks
+  });
+  exportContentNodeFiles({
+    workspace,
+    game,
+    content,
+    modules: [module],
+    contents: [content],
+    users,
+    images: [image],
+    imageLinks
+  });
+  exportDirectoryIndexFiles({
+    workspace,
+    game,
+    modules: [module],
+    contents: [content],
+    users,
+    images: [image],
+    imageLinks,
+    now: new Date('2026-06-18T13:30:00.000Z')
+  });
 
   const generatedAgentFiles = [
-    join(tempDir, 'game-context', 'manifest.yml'),
+    join(tempDir, 'AGENTS.md'),
+    join(tempDir, 'CLAUDE.md'),
+    join(tempDir, 'manifest.yml'),
     join(gameDirectory, 'INDEX.md'),
     join(gameDirectory, 'game.md'),
     join(gameDirectory, 'image_catalog.yml'),
-    join(gameDirectory, 'contents', 'day1_first_gacha.md')
+    join(gameDirectory, 'modules', module.id, 'contents', `${content.id}.md`)
   ];
 
   for (const generatedFile of generatedAgentFiles) {

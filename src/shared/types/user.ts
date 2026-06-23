@@ -13,3 +13,7 @@ export interface SelectCurrentUserInput {
   userId: UserId;
   workspaceId?: WorkspaceId;
 }
+
+export interface LogoutCurrentUserInput {
+  workspaceId?: WorkspaceId;
+}

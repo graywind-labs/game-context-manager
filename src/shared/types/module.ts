@@ -14,7 +14,6 @@ export interface ModuleEditableFieldsInput {
 
 export interface CreateModuleNodeInput extends ModuleEditableFieldsInput {
   workspaceId: WorkspaceId;
-  id?: string;
 }
 
 export interface UpdateModuleNodeInput extends ModuleEditableFieldsInput {

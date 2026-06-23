@@ -523,15 +523,15 @@ const MODULE_SUMMARY_FIELDS: Array<{
   },
   {
     name: 'subjectiveFun',
-    label: 'Fun points (subjective)'
+    label: 'Fun points'
   },
   {
     name: 'subjectiveProblems',
-    label: 'Main problems (subjective)'
+    label: 'Main problems'
   },
   {
     name: 'subjectiveOptimizationDirections',
-    label: 'Optimization directions (subjective)'
+    label: 'Optimization directions'
   }
 ];
 
@@ -579,9 +579,9 @@ function formatModuleSummaryChildren(input: AiModuleSummaryInput): string {
         `Max mainline progress: ${content.maxMainlineProgress ?? '(empty)'}`,
         `Character level: ${content.characterLevel ?? '(empty)'}`,
         `Process description:\n${content.processDescription?.trim() || '(empty)'}`,
-        `Fun points (subjective):\n${content.subjectiveFun?.trim() || '(empty)'}`,
-        `Known problems (subjective):\n${content.subjectiveKnownProblems?.trim() || '(empty)'}`,
-        `Optimization directions (subjective):\n${content.subjectiveOptimizationDirections?.trim() || '(empty)'}`
+        `Fun points:\n${content.subjectiveFun?.trim() || '(empty)'}`,
+        `Known problems:\n${content.subjectiveKnownProblems?.trim() || '(empty)'}`,
+        `Optimization directions:\n${content.subjectiveOptimizationDirections?.trim() || '(empty)'}`
       ].join('\n')
     )
     .join('\n\n');
@@ -608,9 +608,9 @@ function formatGameSummaryModules(input: AiGameSummaryInput): string {
         `System rules:\n${module.systemRules?.trim() || '(empty)'}`,
         `Resource output/consumption:\n${module.resourceFlow?.trim() || '(empty)'}`,
         `Player main actions:\n${module.playerMainActions?.trim() || '(empty)'}`,
-        `Fun points (subjective):\n${module.subjectiveFun?.trim() || '(empty)'}`,
-        `Main problems (subjective):\n${module.subjectiveProblems?.trim() || '(empty)'}`,
-        `Optimization directions (subjective):\n${module.subjectiveOptimizationDirections?.trim() || '(empty)'}`
+        `Fun points:\n${module.subjectiveFun?.trim() || '(empty)'}`,
+        `Main problems:\n${module.subjectiveProblems?.trim() || '(empty)'}`,
+        `Optimization directions:\n${module.subjectiveOptimizationDirections?.trim() || '(empty)'}`
       ].join('\n')
     )
     .join('\n\n');

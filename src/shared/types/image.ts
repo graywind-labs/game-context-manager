@@ -4,7 +4,19 @@ export interface UploadImageAssetInput {
   workspaceId: WorkspaceId;
   displayName: string;
   notes?: string;
+  source?: UploadImageAssetSource;
 }
+
+export type UploadImageAssetSource =
+  | {
+      kind: 'dataUrl';
+      dataUrl: string;
+      originalFileName: string;
+    }
+  | {
+      kind: 'filePath';
+      path: string;
+    };
 
 export interface DeleteImageAssetInput {
   workspaceId: WorkspaceId;

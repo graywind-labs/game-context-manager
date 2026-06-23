@@ -2,14 +2,16 @@ import electron from 'electron';
 import { join } from 'node:path';
 import { registerApiIpc } from './ipc/apiIpc.js';
 import { registerContentIpc } from './ipc/contentIpc.js';
+import { registerExportIpc } from './ipc/exportIpc.js';
 import { registerGameIpc } from './ipc/gameIpc.js';
 import { registerImageIpc } from './ipc/imageIpc.js';
 import { registerModuleIpc } from './ipc/moduleIpc.js';
+import { registerSettingsIpc } from './ipc/settingsIpc.js';
 import { registerUserIpc } from './ipc/userIpc.js';
 import { registerWorkspaceIpc } from './ipc/workspaceIpc.js';
 import { getDefaultDatabasePath, initializeSqliteService, type SqliteService } from './services/sqliteService.js';
 
-const { app, BrowserWindow } = electron;
+const { app, BrowserWindow, Menu } = electron;
 const isDevelopment = Boolean(process.env.ELECTRON_RENDERER_URL);
 let sqliteService: SqliteService | undefined;
 
@@ -19,7 +21,7 @@ function createMainWindow(): void {
     height: 820,
     minWidth: 960,
     minHeight: 640,
-    title: 'Game Context Manager',
+    title: '游戏上下文管理器',
     backgroundColor: '#f8fafc',
     show: false,
     webPreferences: {
@@ -42,6 +44,8 @@ function createMainWindow(): void {
 }
 
 void app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
+
   const databasePath = getDefaultDatabasePath(app.getPath('userData'));
   sqliteService = initializeSqliteService({ databasePath });
   const verification = sqliteService.verifyRequiredTables();
@@ -52,10 +56,12 @@ void app.whenReady().then(() => {
 
   console.info(`[database] SQLite initialized at ${databasePath}`);
   registerApiIpc(sqliteService);
+  registerExportIpc(sqliteService);
   registerGameIpc(sqliteService);
   registerContentIpc(sqliteService);
   registerImageIpc(sqliteService);
   registerModuleIpc(sqliteService);
+  registerSettingsIpc(sqliteService);
   registerUserIpc(sqliteService);
   registerWorkspaceIpc(sqliteService);
 

@@ -1,8 +1,10 @@
 import electron from 'electron';
-import { exportGameNodeFiles, readGameMarkdownPreview } from '../services/fileExportService.js';
+import { deleteGameNodeFiles, exportGameNodeFiles, readGameMarkdownPreview } from '../services/fileExportService.js';
+import { writeWorkspaceMarker } from '../services/workspaceService.js';
 import type { SqliteService } from '../services/sqliteService.js';
 import type {
   CreateGameNodeInput,
+  DeleteGameNodeInput,
   GameNodeState,
   UpdateGameNodeInput,
   WorkspaceConfig,
@@ -14,6 +16,7 @@ const { ipcMain } = electron;
 export const GAME_GET_STATE_CHANNEL = 'game:get-state';
 export const GAME_CREATE_CHANNEL = 'game:create';
 export const GAME_UPDATE_CHANNEL = 'game:update';
+export const GAME_DELETE_CHANNEL = 'game:delete';
 
 export function registerGameIpc(sqliteService: SqliteService): void {
   ipcMain.handle(GAME_GET_STATE_CHANNEL, (_event, workspaceId: WorkspaceId): GameNodeState =>
@@ -24,14 +27,12 @@ export function registerGameIpc(sqliteService: SqliteService): void {
     const workspace = requireWorkspace(sqliteService, input.workspaceId);
     const currentUserId = requireCurrentUserId(workspace);
     const game = sqliteService.createGameNode(input, currentUserId);
+    const refreshedWorkspace = requireWorkspace(sqliteService, input.workspaceId);
     const users = sqliteService.getUserState(input.workspaceId).users;
 
+    writeWorkspaceMarker(refreshedWorkspace, game);
     exportGameNodeFiles({
-      workspace: {
-        ...workspace,
-        activeGameId: game.id,
-        updatedAt: game.updatedAt
-      },
+      workspace: refreshedWorkspace,
       game,
       users,
       images: sqliteService.getImageAssets(input.workspaceId),
@@ -47,20 +48,33 @@ export function registerGameIpc(sqliteService: SqliteService): void {
     const workspace = requireWorkspace(sqliteService, input.workspaceId);
     const currentUserId = requireCurrentUserId(workspace);
     const game = sqliteService.updateGameNode(input.workspaceId, input, currentUserId);
+    const refreshedWorkspace = requireWorkspace(sqliteService, input.workspaceId);
     const users = sqliteService.getUserState(input.workspaceId).users;
 
+    writeWorkspaceMarker(refreshedWorkspace, game);
     exportGameNodeFiles({
-      workspace: {
-        ...workspace,
-        activeGameId: game.id,
-        updatedAt: game.updatedAt
-      },
+      workspace: refreshedWorkspace,
       game,
       users,
       images: sqliteService.getImageAssets(input.workspaceId),
       modules: sqliteService.getModuleNodes(input.workspaceId),
       contents: sqliteService.getContentNodes(input.workspaceId),
       imageLinks: sqliteService.getNodeImageLinks(input.workspaceId)
+    });
+
+    return getGameState(sqliteService, input.workspaceId);
+  });
+
+  ipcMain.handle(GAME_DELETE_CHANNEL, (_event, input: DeleteGameNodeInput): GameNodeState => {
+    const workspace = requireWorkspace(sqliteService, input.workspaceId);
+    const currentUserId = requireCurrentUserId(workspace);
+    const game = requireGame(sqliteService, input.workspaceId);
+
+    requireDeleteOwner(currentUserId, game.creatorId, 'Only the game node creator can delete this game node.');
+    sqliteService.deleteGameNode(input);
+    deleteGameNodeFiles({
+      workspace,
+      game
     });
 
     return getGameState(sqliteService, input.workspaceId);
@@ -99,4 +113,20 @@ function requireCurrentUserId(workspace: WorkspaceConfig): string {
   }
 
   return workspace.currentUserId;
+}
+
+function requireGame(sqliteService: SqliteService, workspaceId: WorkspaceId) {
+  const game = sqliteService.getGameNode(workspaceId);
+
+  if (!game) {
+    throw new Error(`Game node not found for workspace: ${workspaceId}`);
+  }
+
+  return game;
+}
+
+function requireDeleteOwner(currentUserId: string, ownerId: string, message: string): void {
+  if (currentUserId !== ownerId) {
+    throw new Error(message);
+  }
 }

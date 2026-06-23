@@ -4,6 +4,8 @@ import type {
   AiFieldEditResult,
   AiGameSummaryResult,
   AiModuleSummaryResult,
+  AppReadmeResult,
+  AppSettingsState,
   ApiConfigState,
   ApiConnectionTestResult,
   ContentNodeState,
@@ -12,14 +14,23 @@ import type {
   CreateLocalUserInput,
   CreateModuleNodeInput,
   DeleteContentNodeInput,
+  DeleteGameNodeInput,
   DeleteImageAssetInput,
+  DeleteKnownWorkspaceItemInput,
+  DeleteKnownWorkspaceItemResult,
   DeleteModuleNodeInput,
+  ExportResult,
+  ExportWorkspaceInput,
   GameNodeState,
   GenerateAiGameSummaryInput,
   GenerateAiModuleSummaryInput,
   ImageAssetState,
   ModuleNodeState,
+  OpenKnownWorkspaceItemInput,
+  ReadKnownWorkspaceItemInput,
+  ReadKnownWorkspaceItemResult,
   SelectCurrentUserInput,
+  SaveAppSettingsInput,
   SaveApiConfigInput,
   UploadImageAssetInput,
   UpdateGameNodeInput,
@@ -28,6 +39,9 @@ import type {
   UserState,
   WorkspaceCreationResult,
   WorkspaceImportResult,
+  WorkspaceRefreshInput,
+  WorkspaceRefreshResult,
+  WorkspaceRestoreResult,
   WorkspaceId
 } from '../shared/index.js';
 
@@ -36,6 +50,14 @@ contextBridge.exposeInMainWorld('gameContextManager', {
   platform: process.platform,
   getApiConfigState: (): Promise<ApiConfigState> =>
     ipcRenderer.invoke('api:get-state') as Promise<ApiConfigState>,
+  getAppSettingsState: (): Promise<AppSettingsState> =>
+    ipcRenderer.invoke('settings:get-state') as Promise<AppSettingsState>,
+  saveAppSettings: (input: SaveAppSettingsInput): Promise<AppSettingsState> =>
+    ipcRenderer.invoke('settings:save', input) as Promise<AppSettingsState>,
+  readAppReadme: (): Promise<AppReadmeResult> =>
+    ipcRenderer.invoke('settings:read-readme') as Promise<AppReadmeResult>,
+  logoutCurrentUser: (): Promise<UserState> =>
+    ipcRenderer.invoke('settings:logout') as Promise<UserState>,
   saveApiConfig: (input: SaveApiConfigInput): Promise<ApiConfigState> =>
     ipcRenderer.invoke('api:save-config', input) as Promise<ApiConfigState>,
   testApiConnection: (input?: SaveApiConfigInput): Promise<ApiConnectionTestResult> =>
@@ -56,12 +78,28 @@ contextBridge.exposeInMainWorld('gameContextManager', {
     ipcRenderer.invoke('workspace:create') as Promise<WorkspaceCreationResult>,
   importWorkspace: (): Promise<WorkspaceImportResult> =>
     ipcRenderer.invoke('workspace:import') as Promise<WorkspaceImportResult>,
+  refreshWorkspace: (input: WorkspaceRefreshInput): Promise<WorkspaceRefreshResult> =>
+    ipcRenderer.invoke('workspace:refresh', input) as Promise<WorkspaceRefreshResult>,
+  restoreRecentWorkspace: (): Promise<WorkspaceRestoreResult> =>
+    ipcRenderer.invoke('workspace:restore-recent') as Promise<WorkspaceRestoreResult>,
+  openKnownWorkspaceItem: (input: OpenKnownWorkspaceItemInput): Promise<void> =>
+    ipcRenderer.invoke('workspace:open-known-item', input) as Promise<void>,
+  readKnownWorkspaceItem: (input: ReadKnownWorkspaceItemInput): Promise<ReadKnownWorkspaceItemResult> =>
+    ipcRenderer.invoke('workspace:read-known-item', input) as Promise<ReadKnownWorkspaceItemResult>,
+  deleteKnownWorkspaceItem: (input: DeleteKnownWorkspaceItemInput): Promise<DeleteKnownWorkspaceItemResult> =>
+    ipcRenderer.invoke('workspace:delete-known-item', input) as Promise<DeleteKnownWorkspaceItemResult>,
+  exportAgentFiles: (input: ExportWorkspaceInput): Promise<ExportResult> =>
+    ipcRenderer.invoke('export:agent-files', input) as Promise<ExportResult>,
+  exportDirectoryIndex: (input: ExportWorkspaceInput): Promise<ExportResult> =>
+    ipcRenderer.invoke('export:directory-index', input) as Promise<ExportResult>,
   getGameState: (workspaceId: WorkspaceId): Promise<GameNodeState> =>
     ipcRenderer.invoke('game:get-state', workspaceId) as Promise<GameNodeState>,
   createGameNode: (input: CreateGameNodeInput): Promise<GameNodeState> =>
     ipcRenderer.invoke('game:create', input) as Promise<GameNodeState>,
   updateGameNode: (input: UpdateGameNodeInput): Promise<GameNodeState> =>
     ipcRenderer.invoke('game:update', input) as Promise<GameNodeState>,
+  deleteGameNode: (input: DeleteGameNodeInput): Promise<GameNodeState> =>
+    ipcRenderer.invoke('game:delete', input) as Promise<GameNodeState>,
   getImageState: (workspaceId: WorkspaceId): Promise<ImageAssetState> =>
     ipcRenderer.invoke('image:get-state', workspaceId) as Promise<ImageAssetState>,
   uploadImageAsset: (input: UploadImageAssetInput): Promise<ImageAssetState> =>

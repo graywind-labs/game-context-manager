@@ -11,16 +11,18 @@ export interface GameEditableFieldsInput {
   currentOperationGoal?: string;
   currentMainProblems?: string;
   mainOptimizationDirections?: string;
-  notes?: string;
   coverImageId?: string;
 }
 
 export interface CreateGameNodeInput extends GameEditableFieldsInput {
   workspaceId: WorkspaceId;
-  id?: string;
 }
 
 export interface UpdateGameNodeInput extends GameEditableFieldsInput {
+  workspaceId: WorkspaceId;
+}
+
+export interface DeleteGameNodeInput {
   workspaceId: WorkspaceId;
 }
 

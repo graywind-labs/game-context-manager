@@ -48,10 +48,6 @@ export function registerApiIpc(sqliteService: SqliteService): void {
       throw new Error('Save API configuration before using AI editing.');
     }
 
-    if (!config.enabled) {
-      throw new Error('Enable AI assist before generating field edit candidates.');
-    }
-
     return createAiProvider(config).generateFieldEdit(input);
   });
 
@@ -60,10 +56,6 @@ export function registerApiIpc(sqliteService: SqliteService): void {
 
     if (!config) {
       throw new Error('Save API configuration before using AI summarization.');
-    }
-
-    if (!config.enabled) {
-      throw new Error('Enable AI assist before generating module summary candidates.');
     }
 
     const module = sqliteService.getModuleNode(input.workspaceId, input.moduleId);
@@ -84,10 +76,6 @@ export function registerApiIpc(sqliteService: SqliteService): void {
 
     if (!config) {
       throw new Error('Save API configuration before using AI summarization.');
-    }
-
-    if (!config.enabled) {
-      throw new Error('Enable AI assist before generating game summary candidates.');
     }
 
     const game = sqliteService.getGameNode(input.workspaceId);

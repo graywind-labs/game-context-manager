@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse } from 'yaml';
@@ -7,6 +7,7 @@ import { exportGameContextFiles } from '../../src/main/services/fileExportServic
 import { initializeSqliteService } from '../../src/main/services/sqliteService.js';
 import {
   WORKSPACE_SCHEMA_VERSION,
+  createGameFolderName,
   createWorkspaceStructure,
   importWorkspaceFromDirectory
 } from '../../src/main/services/workspaceService.js';
@@ -25,43 +26,36 @@ import {
 const tempDir = mkdtempSync(join(tmpdir(), 'gcm-workspace-'));
 
 try {
+  assert.equal(createGameFolderName('使命防线'), '使命防线游戏上下文');
+
   const workspace = createWorkspaceStructure({
     selectedDirectory: tempDir,
     now: new Date('2026-06-18T12:00:00.000Z')
   });
 
   assert.equal(workspace.rootPath, tempDir);
+  assert.equal(workspace.contextPath, tempDir);
+  assert.equal(workspace.markerPath, join(tempDir, '.game-context-manager.yml'));
   assert.equal(workspace.schemaVersion, WORKSPACE_SCHEMA_VERSION);
-  assert.equal(existsSync(join(tempDir, 'game-context')), true);
-  assert.equal(existsSync(join(tempDir, 'game-context', 'games')), true);
+  assert.equal(existsSync(join(tempDir, '.game-context-manager.yml')), true);
+  assert.equal(existsSync(join(tempDir, 'game-context')), false);
 
-  for (const fileName of ['AGENTS.md', 'CLAUDE.md', 'USAGE.md', 'README.md', 'manifest.yml']) {
-    assert.equal(
-      existsSync(join(tempDir, 'game-context', fileName)),
-      true,
-      `Expected ${fileName} to be generated`
-    );
-  }
-
-  const manifestText = readFileSync(join(tempDir, 'game-context', 'manifest.yml'), 'utf8');
-  const manifest = parse(manifestText) as {
-    workspace: { schema_version: number; generated_at: string };
-    game: null;
-    modules: Record<string, unknown>;
-    contents: Record<string, unknown>;
-    images: Record<string, unknown>;
+  const markerText = readFileSync(join(tempDir, '.game-context-manager.yml'), 'utf8');
+  const marker = parse(markerText) as {
+    schema_version: number;
+    workspace_id: string;
+    generator: string;
+    created_at: string;
+    main_node_id: string | null;
+    main_node_folder_name: string | null;
   };
 
-  assert.equal(manifest.workspace.schema_version, WORKSPACE_SCHEMA_VERSION);
-  assert.equal(manifest.workspace.generated_at, '2026-06-18T12:00:00.000Z');
-  assert.equal(manifest.game, null);
-  assert.deepEqual(manifest.modules, {});
-  assert.deepEqual(manifest.contents, {});
-  assert.deepEqual(manifest.images, {});
-
-  const usageText = readFileSync(join(tempDir, 'game-context', 'USAGE.md'), 'utf8');
-  assert.match(usageText, /manifest\.yml/);
-  assert.match(usageText, /@image_id/);
+  assert.equal(marker.schema_version, WORKSPACE_SCHEMA_VERSION);
+  assert.equal(marker.workspace_id, workspace.id);
+  assert.equal(marker.generator, 'game-context-manager');
+  assert.equal(marker.created_at, '2026-06-18T12:00:00.000Z');
+  assert.equal(marker.main_node_id, null);
+  assert.equal(marker.main_node_folder_name, null);
 
   const secondWorkspace = createWorkspaceStructure({
     selectedDirectory: tempDir,
@@ -69,7 +63,7 @@ try {
   });
 
   assert.deepEqual(secondWorkspace.createdPaths, []);
-  assert.equal(secondWorkspace.existingPaths.includes('game-context/manifest.yml'), true);
+  assert.equal(secondWorkspace.existingPaths.includes('.game-context-manager.yml'), true);
 
   const users: LocalUser[] = [
     {
@@ -79,6 +73,11 @@ try {
       lastLoginAt: '2026-06-18T12:00:00.000Z'
     }
   ];
+
+  const emptyImport = importWorkspaceFromDirectory(tempDir, users[0].id, new Date('2026-06-18T12:02:00.000Z'));
+  assert.equal(emptyImport.summary.imported.gameCount, 0);
+  assert.equal(emptyImport.snapshot.game, undefined);
+
   const game: GameNode = {
     nodeType: NodeType.Game,
     id: 'import_game',
@@ -95,7 +94,7 @@ try {
     id: 'img_import_main',
     displayName: '导入截图',
     originalFileName: 'original.png',
-    relativePath: 'games/import_game/assets/images/img_import_main__import.png',
+    relativePath: '导入测试游戏游戏上下文/assets/images/img_import_main__import.png',
     fileType: 'png',
     gameId: game.id,
     uploaderId: users[0].id,
@@ -158,7 +157,9 @@ try {
     id: secondWorkspace.id,
     rootPath: secondWorkspace.rootPath,
     contextPath: secondWorkspace.contextPath,
+    markerPath: secondWorkspace.markerPath,
     activeGameId: game.id,
+    activeGameFolderName: '导入测试游戏游戏上下文',
     currentUserId: users[0].id,
     schemaVersion: secondWorkspace.schemaVersion,
     createdAt: secondWorkspace.createdAt,
@@ -175,13 +176,17 @@ try {
     imageLinks,
     now: new Date('2026-06-18T13:00:00.000Z')
   });
+  writeFileSync(join(tempDir, image.relativePath), 'fake image');
 
-  const importedWorkspace = importWorkspaceFromDirectory(join(tempDir, 'game-context'), users[0].id, new Date('2026-06-18T13:05:00.000Z'));
+  const importedWorkspace = importWorkspaceFromDirectory(tempDir, users[0].id, new Date('2026-06-18T13:05:00.000Z'));
 
   assert.equal(importedWorkspace.summary.imported.gameCount, 1);
   assert.equal(importedWorkspace.summary.imported.moduleCount, 1);
   assert.equal(importedWorkspace.summary.imported.contentCount, 1);
   assert.equal(importedWorkspace.summary.imported.imageCount, 1);
+  assert.equal(importedWorkspace.summary.existingPaths.includes('manifest.yml'), true);
+  assert.equal(importedWorkspace.summary.existingPaths.includes('导入测试游戏游戏上下文/INDEX.md'), true);
+  assert.equal(importedWorkspace.summary.existingPaths.includes('导入测试游戏游戏上下文/image_catalog.yml'), true);
   assert.equal(importedWorkspace.snapshot.game?.gameName, game.gameName);
   assert.equal(importedWorkspace.snapshot.modules[0].modulePositioning, module.modulePositioning);
   assert.equal(importedWorkspace.snapshot.contents[0].processDescription, content.processDescription);
@@ -200,6 +205,8 @@ try {
     sqliteService.replaceWorkspaceSnapshot(importedWorkspace.snapshot);
 
     assert.equal(sqliteService.getWorkspace(importedWorkspace.summary.id)?.activeGameId, game.id);
+    assert.equal(sqliteService.getWorkspace(importedWorkspace.summary.id)?.activeGameFolderName, '导入测试游戏游戏上下文');
+    assert.equal(sqliteService.getWorkspace(importedWorkspace.summary.id)?.directoryIndexNeedsExport, false);
     assert.equal(sqliteService.getGameNode(importedWorkspace.summary.id)?.gameName, game.gameName);
     assert.equal(sqliteService.getModuleNodes(importedWorkspace.summary.id)[0].moduleName, module.moduleName);
     assert.equal(sqliteService.getContentNodes(importedWorkspace.summary.id)[0].title, content.title);
@@ -208,6 +215,46 @@ try {
   } finally {
     sqliteService.close();
   }
+
+  unlinkSync(join(tempDir, 'manifest.yml'));
+  unlinkSync(join(tempDir, '导入测试游戏游戏上下文', 'INDEX.md'));
+  unlinkSync(join(tempDir, '导入测试游戏游戏上下文', 'image_catalog.yml'));
+
+  const fallbackImportedWorkspace = importWorkspaceFromDirectory(tempDir, users[0].id, new Date('2026-06-18T13:06:00.000Z'));
+
+  assert.equal(fallbackImportedWorkspace.summary.imported.gameCount, 1);
+  assert.equal(fallbackImportedWorkspace.summary.imported.moduleCount, 1);
+  assert.equal(fallbackImportedWorkspace.summary.imported.contentCount, 1);
+  assert.equal(fallbackImportedWorkspace.summary.imported.imageCount, 1);
+  assert.equal(fallbackImportedWorkspace.snapshot.workspace.directoryIndexNeedsExport, true);
+  assert.equal(fallbackImportedWorkspace.snapshot.images[0].id, image.id);
+  assert.equal(fallbackImportedWorkspace.snapshot.images[0].relativePath, image.relativePath);
+  assert.equal(
+    fallbackImportedWorkspace.summary.warnings.some((warning) => warning.includes('manifest.yml is missing')),
+    true
+  );
+  assert.equal(
+    fallbackImportedWorkspace.summary.warnings.some((warning) => warning.includes('image_catalog.yml is missing')),
+    true
+  );
+
+  const unmarkedDirectory = join(tempDir, 'unmarked');
+  mkdirSync(unmarkedDirectory);
+  assert.throws(
+    () => importWorkspaceFromDirectory(unmarkedDirectory, users[0].id, new Date('2026-06-18T13:10:00.000Z')),
+    /No valid \.game-context-manager\.yml/
+  );
+
+  const nestedWorkspaceDirectory = join(tempDir, 'nested-workspace');
+  mkdirSync(nestedWorkspaceDirectory);
+  createWorkspaceStructure({
+    selectedDirectory: nestedWorkspaceDirectory,
+    now: new Date('2026-06-18T13:11:00.000Z')
+  });
+  assert.throws(
+    () => importWorkspaceFromDirectory(tempDir, users[0].id, new Date('2026-06-18T13:12:00.000Z')),
+    /Multiple game context workspace markers/
+  );
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
 }

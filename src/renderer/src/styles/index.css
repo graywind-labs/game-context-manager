@@ -12,3 +12,26 @@ body {
   min-width: 960px;
   min-height: 640px;
 }
+
+.linked-image-scroll {
+  scrollbar-color: #94a3b8 #e2e8f0;
+  scrollbar-width: thin;
+}
+
+.linked-image-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.linked-image-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.linked-image-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.linked-image-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}

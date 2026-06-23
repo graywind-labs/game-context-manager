@@ -1,35 +1,39 @@
-# Sample Game Context Workspace
+﻿# Sample Game Context Workspace
 
 This example is a small, fake workspace for verifying that Game Context Manager exports are readable without opening the GUI.
 
 ## What Is Included
 
+- Workspace marker: `.game-context-manager.yml`
 - One game node: `starfall_workshop`
 - Two module nodes: `core_loop`, `upgrade_shop`
 - Two content nodes: `day1_lobby_first_loop`, `day2_upgrade_pressure`
-- Two image assets under `game-context/games/starfall_workshop/assets/images/`
+- Two image assets under `starfall_workshop/assets/images/`
 - `manifest.yml`, per-game `INDEX.md`, `image_catalog.yml`, and static downstream instructions
 
 ## How Codex Should Read It
 
-1. Open `game-context/AGENTS.md`.
-2. Open `game-context/manifest.yml` and use the paths under `game`, `modules`, `contents`, and `images`.
-3. Open `game-context/USAGE.md` for the general reading workflow.
-4. Open `game-context/games/starfall_workshop/INDEX.md` for a human-readable per-game table of contents.
-5. Read only the module/content Markdown needed for the current task, and resolve `@image_id` references through `manifest.yml` or `image_catalog.yml`.
+1. Open `AGENTS.md`.
+2. Open `manifest.yml` and use the paths under `game`, `modules`, `contents`, and `images`.
+3. Use `manifest.yml` `field_schema` and `starfall_workshop/INDEX.md` for the structured field map.
+4. Read only the module/content Markdown needed for the current task.
+5. Resolve `@image_id` references through `manifest.yml` or `image_catalog.yml`; for image-centered questions, use `linked_node_files` to find related node files.
 
 ## How Claude Code / WorkBuddy Should Read It
 
-1. Open `game-context/CLAUDE.md`.
-2. Read `game-context/manifest.yml`.
-3. Load `game-context/games/starfall_workshop/game.md` first.
-4. Use the per-game `INDEX.md` to decide which module and content files are relevant.
+1. Open `CLAUDE.md`.
+2. Read `manifest.yml`.
+3. Load `starfall_workshop/game.md` first.
+4. Use the per-game `INDEX.md` and manifest `field_schema` to decide which module/content fields are relevant.
+5. Use `image_catalog.yml` `linked_node_files` when a task starts from an image.
 
 ## Manual Readability Check
 
-Checked on 2026-06-22:
+Checked on 2026-06-23:
 
-- `manifest.yml` points to every game, module, content, and image file in this example.
+- `.game-context-manager.yml` identifies the workspace and main node folder.
+- `manifest.yml` points to every game, module, content, and image file in this example, and includes `field_schema`.
 - Every Markdown node has YAML frontmatter and readable section headings.
 - Content files use `@image_id` references only for images listed in their own `images` frontmatter.
+- `image_catalog.yml` includes `linked_node_files` for image-to-node lookup.
 - The two SVG image assets can be opened directly from their manifest paths.

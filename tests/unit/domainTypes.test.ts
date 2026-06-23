@@ -25,7 +25,7 @@ const localUser: LocalUser = {
 const workspaceConfig: WorkspaceConfig = {
   id: 'workspace_sample',
   rootPath: 'D:/sample',
-  contextPath: 'D:/sample/game-context',
+  contextPath: 'D:/sample',
   activeGameId: 'mission_frontline',
   currentUserId: localUser.id,
   schemaVersion: 1,
@@ -37,7 +37,6 @@ const apiConfig: ApiConfig = {
   id: 'api_default',
   baseUrl: 'https://api.example.test/v1',
   modelName: 'mock-model',
-  enabled: false,
   createdAt,
   updatedAt: createdAt
 };
@@ -85,7 +84,7 @@ const imageAsset: ImageAsset = {
   id: 'img_main_workshop',
   displayName: '主界面生产线区域',
   originalFileName: 'weird-original-name.png',
-  relativePath: 'games/mission_frontline/assets/images/img_main_workshop__main-workshop.png',
+  relativePath: 'mission_frontline/assets/images/img_main_workshop__main-workshop.png',
   fileType: 'png',
   gameId: gameNode.id,
   uploaderId: localUser.id,

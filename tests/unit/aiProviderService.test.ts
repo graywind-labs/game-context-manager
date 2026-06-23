@@ -17,8 +17,7 @@ assert.equal(mockResult.modelName, 'mock-model');
 
 const providerFromConfig = createAiProvider({
   baseUrl: 'mock://local',
-  modelName: 'mock-model',
-  enabled: true
+  modelName: 'mock-model'
 });
 const configResult = await providerFromConfig.testConnection();
 
@@ -192,7 +191,6 @@ const gameSummaryInput: AiGameSummaryInput = {
     currentOperationGoal: '',
     currentMainProblems: '',
     mainOptimizationDirections: '',
-    notes: '',
     creatorId: 'user_001',
     lastEditorId: 'user_001',
     createdAt: '2026-06-19T00:00:00.000Z',

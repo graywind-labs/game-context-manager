@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import electron from 'electron';
-import { deleteImageAssetFiles, exportImageCatalogFiles } from '../services/fileExportService.js';
+import { deleteImageAssetFiles } from '../services/fileExportService.js';
+import { createGameFolderName } from '../services/workspaceService.js';
 import type { SqliteService } from '../services/sqliteService.js';
 import {
   NodeType,
@@ -16,6 +16,7 @@ import {
   type ModuleNode,
   type NodeImageLink,
   type UploadImageAssetInput,
+  type UploadImageAssetSource,
   type WorkspaceConfig,
   type WorkspaceId
 } from '../../shared/index.js';
@@ -27,6 +28,12 @@ export const IMAGE_UPLOAD_CHANNEL = 'image:upload';
 export const IMAGE_DELETE_CHANNEL = 'image:delete';
 
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
+
+interface ResolvedImageSource {
+  originalFileName: string;
+  extension: string;
+  writeTo: (destinationPath: string) => void;
+}
 
 export function registerImageIpc(sqliteService: SqliteService): void {
   ipcMain.handle(IMAGE_GET_STATE_CHANNEL, (_event, workspaceId: WorkspaceId): ImageAssetState =>
@@ -43,35 +50,26 @@ export function registerImageIpc(sqliteService: SqliteService): void {
     const workspace = requireWorkspace(sqliteService, input.workspaceId);
     const game = requireGame(sqliteService, input.workspaceId);
     const uploaderId = requireCurrentUserId(workspace);
-    const result = await dialog.showOpenDialog({
-      title: 'Select image',
-      properties: ['openFile'],
-      filters: [
-        {
-          name: 'Images',
-          extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif']
-        }
-      ]
-    });
+    const source = input.source ? resolveUploadSource(input.source) : await selectImageSourceFromDialog();
 
-    if (result.canceled || result.filePaths.length === 0) {
+    if (!source) {
       return {
         ...getImageState(sqliteService, input.workspaceId),
         canceled: true
       };
     }
 
-    const sourcePath = result.filePaths[0];
-    const extension = normalizeImageExtension(extname(sourcePath));
+    const extension = source.extension;
     const now = new Date().toISOString();
-    const imageId = createImageId(displayName);
+    const imageId = createImageId(sqliteService.getImageAssets(input.workspaceId).map((image) => image.id));
     const safeDisplayName = createSafeFileNameSegment(displayName);
-    const relativePath = `games/${game.id}/assets/images/${imageId}__${safeDisplayName}${extension}`;
+    const gameFolderName = workspace.activeGameFolderName ?? createGameFolderName(game.gameName);
+    const relativePath = `${gameFolderName}/assets/images/${imageId}__${safeDisplayName}${extension}`;
     const destinationPath = join(workspace.contextPath, relativePath);
     const image: ImageAsset = {
       id: imageId,
       displayName,
-      originalFileName: basename(sourcePath),
+      originalFileName: source.originalFileName,
       relativePath,
       fileType: extension.slice(1),
       gameId: game.id,
@@ -80,35 +78,25 @@ export function registerImageIpc(sqliteService: SqliteService): void {
       notes: optionalTrim(input.notes)
     };
 
-    mkdirSync(join(workspace.contextPath, 'games', game.id, 'assets', 'images'), { recursive: true });
-    copyFileSync(sourcePath, destinationPath);
+    mkdirSync(join(workspace.contextPath, gameFolderName, 'assets', 'images'), { recursive: true });
+    source.writeTo(destinationPath);
     sqliteService.createImageAsset(input.workspaceId, image);
-
-    const images = sqliteService.getImageAssets(input.workspaceId);
-    const users = sqliteService.getUserState(input.workspaceId).users;
-    exportImageCatalogFiles({
-      workspace,
-      game,
-      users,
-      images,
-      modules: sqliteService.getModuleNodes(input.workspaceId),
-      contents: sqliteService.getContentNodes(input.workspaceId),
-      imageLinks: sqliteService.getNodeImageLinks(input.workspaceId)
-    });
 
     return getImageState(sqliteService, input.workspaceId);
   });
 
   ipcMain.handle(IMAGE_DELETE_CHANNEL, (_event, input: DeleteImageAssetInput): ImageAssetState => {
     const workspace = requireWorkspace(sqliteService, input.workspaceId);
+    const currentUserId = requireCurrentUserId(workspace);
     const deletedImage = sqliteService.getImageAsset(input.workspaceId, input.id);
 
     if (!deletedImage) {
       throw new Error(`Image asset not found: ${input.id}`);
     }
 
+    requireDeleteOwner(currentUserId, deletedImage.uploaderId, 'Only the image uploader can delete this image asset.');
     sqliteService.deleteImageAsset(input);
-    const refreshedGame = requireGame(sqliteService, input.workspaceId);
+    const refreshedGame = sqliteService.getGameNode(input.workspaceId);
 
     deleteImageAssetFiles({
       workspace,
@@ -223,6 +211,12 @@ function requireCurrentUserId(workspace: WorkspaceConfig): string {
   return workspace.currentUserId;
 }
 
+function requireDeleteOwner(currentUserId: string, ownerId: string, message: string): void {
+  if (currentUserId !== ownerId) {
+    throw new Error(message);
+  }
+}
+
 function normalizeImageExtension(extension: string): string {
   const normalized = extension.toLowerCase();
 
@@ -233,15 +227,103 @@ function normalizeImageExtension(extension: string): string {
   return normalized === '.jpeg' ? '.jpg' : normalized;
 }
 
-function createImageId(displayName: string): string {
-  const slug = displayName
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9_-]+/g, '_')
-    .replaceAll(/_+/g, '_')
-    .replaceAll(/^_+|_+$/g, '');
-  const suffix = randomUUID().replaceAll('-', '').slice(0, 8);
+async function selectImageSourceFromDialog(): Promise<ResolvedImageSource | undefined> {
+  const result = await dialog.showOpenDialog({
+    title: 'Select image',
+    properties: ['openFile'],
+    filters: [
+      {
+        name: 'Images',
+        extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif']
+      }
+    ]
+  });
 
-  return `img_${slug ? `${slug}_` : ''}${suffix}`;
+  if (result.canceled || result.filePaths.length === 0) {
+    return undefined;
+  }
+
+  return resolveFilePathUploadSource(result.filePaths[0]);
+}
+
+function resolveUploadSource(source: UploadImageAssetSource): ResolvedImageSource {
+  if (source.kind === 'filePath') {
+    return resolveFilePathUploadSource(source.path);
+  }
+
+  return resolveDataUrlUploadSource(source);
+}
+
+function resolveFilePathUploadSource(sourcePath: string): ResolvedImageSource {
+  const extension = normalizeImageExtension(extname(sourcePath));
+
+  return {
+    originalFileName: basename(sourcePath),
+    extension,
+    writeTo: (destinationPath) => copyFileSync(sourcePath, destinationPath)
+  };
+}
+
+function resolveDataUrlUploadSource(source: Extract<UploadImageAssetSource, { kind: 'dataUrl' }>): ResolvedImageSource {
+  const match = source.dataUrl.match(/^data:([^;,]+);base64,(.+)$/);
+
+  if (!match) {
+    throw new Error('Invalid image data.');
+  }
+
+  const mimeType = match[1].toLowerCase();
+  const extension = normalizeImageExtension(extname(source.originalFileName) || getImageExtensionFromMimeType(mimeType));
+  const originalFileName = source.originalFileName.trim() || `clipboard-image${extension}`;
+  const buffer = Buffer.from(match[2], 'base64');
+
+  return {
+    originalFileName,
+    extension,
+    writeTo: (destinationPath) => writeFileSync(destinationPath, buffer)
+  };
+}
+
+function getImageExtensionFromMimeType(mimeType: string): string {
+  if (mimeType === 'image/jpeg') {
+    return '.jpg';
+  }
+
+  if (mimeType === 'image/png') {
+    return '.png';
+  }
+
+  if (mimeType === 'image/webp') {
+    return '.webp';
+  }
+
+  if (mimeType === 'image/gif') {
+    return '.gif';
+  }
+
+  throw new Error(`Unsupported image MIME type: ${mimeType || '(none)'}`);
+}
+
+function createImageId(existingIds: string[]): string {
+  const pattern = /^image_(\d+)$/;
+  let nextNumber = 1;
+
+  for (const id of existingIds) {
+    const match = id.match(pattern);
+
+    if (match) {
+      nextNumber = Math.max(nextNumber, Number(match[1]) + 1);
+    }
+  }
+
+  const existingIdSet = new Set(existingIds);
+  let nextId = `image_${String(nextNumber).padStart(3, '0')}`;
+
+  while (existingIdSet.has(nextId)) {
+    nextNumber += 1;
+    nextId = `image_${String(nextNumber).padStart(3, '0')}`;
+  }
+
+  return nextId;
 }
 
 function createSafeFileNameSegment(displayName: string): string {

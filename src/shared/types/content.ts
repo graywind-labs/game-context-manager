@@ -16,7 +16,6 @@ export interface ContentEditableFieldsInput {
 
 export interface CreateContentNodeInput extends ContentEditableFieldsInput {
   workspaceId: WorkspaceId;
-  id?: string;
 }
 
 export interface UpdateContentNodeInput extends ContentEditableFieldsInput {

@@ -6,12 +6,14 @@ import {
   DEFAULT_API_CONFIG_ID,
   NodeType,
   type ApiConfig,
+  type AppSettings,
   type ContentNode,
   type CreateContentNodeInput,
   type CreateGameNodeInput,
   type CreateLocalUserInput,
   type CreateModuleNodeInput,
   type DeleteContentNodeInput,
+  type DeleteGameNodeInput,
   type DeleteImageAssetInput,
   type DeleteModuleNodeInput,
   type GameNode,
@@ -20,6 +22,7 @@ import {
   type ModuleNode,
   type NodeImageLink,
   type SaveApiConfigInput,
+  type SaveAppSettingsInput,
   type UpdateContentNodeInput,
   type UpdateModuleNodeInput,
   type UserId,
@@ -28,7 +31,7 @@ import {
   type WorkspaceId
 } from '../../shared/index.js';
 
-export const DATABASE_SCHEMA_VERSION = 1;
+export const DATABASE_SCHEMA_VERSION = 5;
 export const DEFAULT_DATABASE_FILE_NAME = 'game-context-manager.sqlite3';
 
 export const REQUIRED_TABLES = [
@@ -41,6 +44,7 @@ export const REQUIRED_TABLES = [
   'image_assets',
   'node_image_links',
   'api_configs',
+  'app_settings',
   'edit_history'
 ] as const;
 
@@ -50,6 +54,7 @@ interface Migration {
   version: number;
   name: string;
   sql: string;
+  disableForeignKeys?: boolean;
 }
 
 export interface InitializeSqliteServiceOptions {
@@ -72,14 +77,20 @@ export interface SqliteService {
   getUserState: (workspaceId?: WorkspaceId) => UserState;
   createLocalUser: (input: CreateLocalUserInput, workspaceId?: WorkspaceId) => LocalUser;
   selectCurrentUser: (userId: UserId, workspaceId?: WorkspaceId) => LocalUser;
+  logoutCurrentUser: () => UserState;
+  getAppSettings: () => AppSettings;
+  saveAppSettings: (input: SaveAppSettingsInput) => AppSettings;
   getApiConfig: () => ApiConfig | undefined;
   saveApiConfig: (input: SaveApiConfigInput) => ApiConfig;
   getWorkspace: (workspaceId: WorkspaceId) => WorkspaceConfig | undefined;
   saveWorkspace: (workspace: WorkspaceConfig) => void;
+  markWorkspaceDirectoryIndexNeedsExport: (workspaceId: WorkspaceId) => void;
+  markWorkspaceDirectoryIndexExported: (workspaceId: WorkspaceId) => void;
   replaceWorkspaceSnapshot: (snapshot: WorkspaceImportSnapshot) => void;
   getGameNode: (workspaceId: WorkspaceId) => GameNode | undefined;
   createGameNode: (input: CreateGameNodeInput, creatorId: UserId) => GameNode;
   updateGameNode: (workspaceId: WorkspaceId, input: CreateGameNodeInput, editorId: UserId) => GameNode;
+  deleteGameNode: (input: DeleteGameNodeInput) => void;
   getModuleNodes: (workspaceId: WorkspaceId) => ModuleNode[];
   getModuleNode: (workspaceId: WorkspaceId, moduleId: string) => ModuleNode | undefined;
   createModuleNode: (input: CreateModuleNodeInput, creatorId: UserId) => ModuleNode;
@@ -192,7 +203,7 @@ CREATE TABLE IF NOT EXISTS content_nodes (
 CREATE TABLE IF NOT EXISTS image_assets (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  game_id TEXT NOT NULL REFERENCES game_nodes(id) ON DELETE CASCADE,
+  game_id TEXT NOT NULL,
   display_name TEXT NOT NULL,
   original_file_name TEXT NOT NULL,
   relative_path TEXT NOT NULL,
@@ -215,8 +226,13 @@ CREATE TABLE IF NOT EXISTS api_configs (
   base_url TEXT NOT NULL,
   api_key TEXT,
   model_name TEXT NOT NULL,
-  enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
   created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  id TEXT PRIMARY KEY CHECK (id = 'default_app_settings'),
+  language TEXT NOT NULL CHECK (language IN ('zh', 'en')),
   updated_at TEXT NOT NULL
 ) STRICT;
 
@@ -248,6 +264,96 @@ const MIGRATIONS: Migration[] = [
     version: 1,
     name: 'initial_schema',
     sql: INITIAL_SCHEMA_SQL
+  },
+  {
+    version: 2,
+    name: 'workspace_marker_metadata',
+    sql: `
+      ALTER TABLE workspaces ADD COLUMN marker_path TEXT;
+      ALTER TABLE workspaces ADD COLUMN active_game_folder_name TEXT;
+    `
+  },
+  {
+    version: 3,
+    name: 'manual_directory_index_state',
+    sql: `
+      ALTER TABLE workspaces ADD COLUMN directory_index_needs_export INTEGER NOT NULL DEFAULT 0 CHECK (directory_index_needs_export IN (0, 1));
+    `
+  },
+  {
+    version: 4,
+    name: 'settings_and_default_api',
+    sql: `
+      CREATE TABLE api_configs_next (
+        id TEXT PRIMARY KEY,
+        base_url TEXT NOT NULL,
+        api_key TEXT,
+        model_name TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT;
+
+      INSERT INTO api_configs_next (id, base_url, api_key, model_name, created_at, updated_at)
+      SELECT id, base_url, api_key, model_name, created_at, updated_at
+      FROM api_configs;
+
+      DROP TABLE api_configs;
+      ALTER TABLE api_configs_next RENAME TO api_configs;
+
+      CREATE TABLE IF NOT EXISTS app_settings (
+        id TEXT PRIMARY KEY CHECK (id = 'default_app_settings'),
+        language TEXT NOT NULL CHECK (language IN ('zh', 'en')),
+        updated_at TEXT NOT NULL
+      ) STRICT;
+    `
+  },
+  {
+    version: 5,
+    name: 'preserve_images_when_deleting_game_node',
+    disableForeignKeys: true,
+    sql: `
+      CREATE TABLE image_assets_next (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        game_id TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        original_file_name TEXT NOT NULL,
+        relative_path TEXT NOT NULL,
+        file_type TEXT NOT NULL,
+        uploader_id TEXT NOT NULL REFERENCES users(id),
+        updated_at TEXT NOT NULL,
+        notes TEXT
+      ) STRICT;
+
+      INSERT INTO image_assets_next (
+        id,
+        workspace_id,
+        game_id,
+        display_name,
+        original_file_name,
+        relative_path,
+        file_type,
+        uploader_id,
+        updated_at,
+        notes
+      )
+      SELECT
+        id,
+        workspace_id,
+        game_id,
+        display_name,
+        original_file_name,
+        relative_path,
+        file_type,
+        uploader_id,
+        updated_at,
+        notes
+      FROM image_assets;
+
+      DROP TABLE image_assets;
+      ALTER TABLE image_assets_next RENAME TO image_assets;
+      CREATE INDEX IF NOT EXISTS idx_image_assets_game_id ON image_assets(game_id);
+    `
   }
 ];
 
@@ -281,14 +387,20 @@ export function initializeSqliteService(options: InitializeSqliteServiceOptions)
     getUserState: (workspaceId) => getUserState(database, workspaceId),
     createLocalUser: (input, workspaceId) => createLocalUser(database, input, workspaceId),
     selectCurrentUser: (userId, workspaceId) => selectCurrentUser(database, userId, workspaceId),
+    logoutCurrentUser: () => logoutCurrentUser(database),
+    getAppSettings: () => getAppSettings(database),
+    saveAppSettings: (input) => saveAppSettings(database, input),
     getApiConfig: () => getApiConfig(database),
     saveApiConfig: (input) => saveApiConfig(database, input),
     getWorkspace: (workspaceId) => getWorkspace(database, workspaceId),
     saveWorkspace: (workspace) => saveWorkspace(database, workspace),
+    markWorkspaceDirectoryIndexNeedsExport: (workspaceId) => markWorkspaceDirectoryIndexNeedsExport(database, workspaceId),
+    markWorkspaceDirectoryIndexExported: (workspaceId) => markWorkspaceDirectoryIndexExported(database, workspaceId),
     replaceWorkspaceSnapshot: (snapshot) => replaceWorkspaceSnapshot(database, snapshot),
     getGameNode: (workspaceId) => getGameNode(database, workspaceId),
     createGameNode: (input, creatorId) => createGameNode(database, input, creatorId),
     updateGameNode: (workspaceId, input, editorId) => updateGameNode(database, workspaceId, input, editorId),
+    deleteGameNode: (input) => deleteGameNode(database, input),
     getModuleNodes: (workspaceId) => getModuleNodes(database, workspaceId),
     getModuleNode: (workspaceId, moduleId) => getModuleNode(database, workspaceId, moduleId),
     createModuleNode: (input, creatorId) => createModuleNode(database, input, creatorId),
@@ -334,13 +446,23 @@ function applyMigrations(database: DatabaseSync): void {
       continue;
     }
 
+    if (migration.disableForeignKeys) {
+      database.exec('PRAGMA foreign_keys = OFF;');
+    }
+
     database.exec('BEGIN IMMEDIATE;');
     try {
       database.exec(migration.sql);
       insertMigration.run(migration.version, migration.name, new Date().toISOString());
       database.exec('COMMIT;');
+      if (migration.disableForeignKeys) {
+        database.exec('PRAGMA foreign_keys = ON;');
+      }
     } catch (error) {
       database.exec('ROLLBACK;');
+      if (migration.disableForeignKeys) {
+        database.exec('PRAGMA foreign_keys = ON;');
+      }
       throw error;
     }
   }
@@ -408,6 +530,7 @@ function getCurrentUser(database: DatabaseSync, workspaceId?: WorkspaceId): Loca
           FROM workspaces
           JOIN users ON users.id = workspaces.current_user_id
           WHERE workspaces.id = ?
+            AND users.last_login_at IS NOT NULL
         `
       )
       .get(workspaceId);
@@ -422,7 +545,8 @@ function getCurrentUser(database: DatabaseSync, workspaceId?: WorkspaceId): Loca
       `
         SELECT id, display_name, created_at, last_login_at
         FROM users
-        ORDER BY COALESCE(last_login_at, created_at) DESC, created_at DESC
+        WHERE last_login_at IS NOT NULL
+        ORDER BY last_login_at DESC, created_at DESC
         LIMIT 1
       `
     )
@@ -507,6 +631,31 @@ function selectCurrentUser(database: DatabaseSync, userId: UserId, workspaceId?:
   };
 }
 
+function logoutCurrentUser(database: DatabaseSync): UserState {
+  const now = new Date().toISOString();
+
+  database.exec('BEGIN IMMEDIATE;');
+  try {
+    database.prepare('UPDATE users SET last_login_at = NULL WHERE last_login_at IS NOT NULL').run();
+    database
+      .prepare(
+        `
+          UPDATE workspaces
+          SET current_user_id = NULL,
+              updated_at = ?
+          WHERE current_user_id IS NOT NULL
+        `
+      )
+      .run(now);
+    database.exec('COMMIT;');
+  } catch (error) {
+    database.exec('ROLLBACK;');
+    throw error;
+  }
+
+  return getUserState(database);
+}
+
 function updateWorkspaceCurrentUser(database: DatabaseSync, workspaceId: WorkspaceId, userId: UserId, updatedAt: string): void {
   const result = database
     .prepare(
@@ -522,6 +671,55 @@ function updateWorkspaceCurrentUser(database: DatabaseSync, workspaceId: Workspa
   if (result.changes === 0) {
     throw new Error(`Workspace not found: ${workspaceId}`);
   }
+}
+
+function getAppSettings(database: DatabaseSync): AppSettings {
+  const row = database
+    .prepare(
+      `
+        SELECT language, updated_at
+        FROM app_settings
+        WHERE id = 'default_app_settings'
+      `
+    )
+    .get() as { language: string; updated_at: string } | undefined;
+
+  if (!row) {
+    return {
+      language: 'zh'
+    };
+  }
+
+  return {
+    language: row.language === 'en' ? 'en' : 'zh',
+    updatedAt: row.updated_at
+  };
+}
+
+function saveAppSettings(database: DatabaseSync, input: SaveAppSettingsInput): AppSettings {
+  if (!['zh', 'en'].includes(input.language)) {
+    throw new Error(`Unsupported language: ${input.language}`);
+  }
+
+  const now = new Date().toISOString();
+  const settings: AppSettings = {
+    language: input.language,
+    updatedAt: now
+  };
+
+  database
+    .prepare(
+      `
+        INSERT INTO app_settings (id, language, updated_at)
+        VALUES ('default_app_settings', ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          language = excluded.language,
+          updated_at = excluded.updated_at
+      `
+    )
+    .run(settings.language, now);
+
+  return settings;
 }
 
 function mapUserRow(row: unknown): LocalUser {
@@ -544,7 +742,7 @@ function getApiConfig(database: DatabaseSync): ApiConfig | undefined {
   const row = database
     .prepare(
       `
-        SELECT id, base_url, api_key, model_name, enabled, created_at, updated_at
+        SELECT id, base_url, api_key, model_name, created_at, updated_at
         FROM api_configs
         WHERE id = ?
       `
@@ -574,7 +772,6 @@ function saveApiConfig(database: DatabaseSync, input: SaveApiConfigInput): ApiCo
     baseUrl,
     apiKey,
     modelName,
-    enabled: input.enabled,
     createdAt: existingConfig?.createdAt ?? now,
     updatedAt: now
   };
@@ -582,13 +779,12 @@ function saveApiConfig(database: DatabaseSync, input: SaveApiConfigInput): ApiCo
   database
     .prepare(
       `
-        INSERT INTO api_configs (id, base_url, api_key, model_name, enabled, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO api_configs (id, base_url, api_key, model_name, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           base_url = excluded.base_url,
           api_key = excluded.api_key,
           model_name = excluded.model_name,
-          enabled = excluded.enabled,
           updated_at = excluded.updated_at
       `
     )
@@ -597,7 +793,6 @@ function saveApiConfig(database: DatabaseSync, input: SaveApiConfigInput): ApiCo
       config.baseUrl,
       config.apiKey ?? null,
       config.modelName,
-      config.enabled ? 1 : 0,
       config.createdAt,
       config.updatedAt
     );
@@ -613,18 +808,24 @@ function saveWorkspace(database: DatabaseSync, workspace: WorkspaceConfig): void
           id,
           root_path,
           context_path,
+          marker_path,
           active_game_id,
+          active_game_folder_name,
           current_user_id,
+          directory_index_needs_export,
           schema_version,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           root_path = excluded.root_path,
           context_path = excluded.context_path,
+          marker_path = excluded.marker_path,
           active_game_id = excluded.active_game_id,
+          active_game_folder_name = excluded.active_game_folder_name,
           current_user_id = excluded.current_user_id,
+          directory_index_needs_export = excluded.directory_index_needs_export,
           schema_version = excluded.schema_version,
           updated_at = excluded.updated_at
       `
@@ -633,12 +834,51 @@ function saveWorkspace(database: DatabaseSync, workspace: WorkspaceConfig): void
       workspace.id,
       workspace.rootPath,
       workspace.contextPath,
+      workspace.markerPath ?? null,
       workspace.activeGameId ?? null,
+      workspace.activeGameFolderName ?? null,
       workspace.currentUserId ?? null,
+      workspace.directoryIndexNeedsExport ? 1 : 0,
       workspace.schemaVersion,
       workspace.createdAt,
       workspace.updatedAt
     );
+}
+
+function markWorkspaceDirectoryIndexNeedsExport(database: DatabaseSync, workspaceId: WorkspaceId): void {
+  const now = new Date().toISOString();
+  const result = database
+    .prepare(
+      `
+        UPDATE workspaces
+        SET directory_index_needs_export = 1,
+            updated_at = ?
+        WHERE id = ?
+      `
+    )
+    .run(now, workspaceId);
+
+  if (result.changes === 0) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
+}
+
+function markWorkspaceDirectoryIndexExported(database: DatabaseSync, workspaceId: WorkspaceId): void {
+  const now = new Date().toISOString();
+  const result = database
+    .prepare(
+      `
+        UPDATE workspaces
+        SET directory_index_needs_export = 0,
+            updated_at = ?
+        WHERE id = ?
+      `
+    )
+    .run(now, workspaceId);
+
+  if (result.changes === 0) {
+    throw new Error(`Workspace not found: ${workspaceId}`);
+  }
 }
 
 function replaceWorkspaceSnapshot(database: DatabaseSync, snapshot: WorkspaceImportSnapshot): void {
@@ -695,12 +935,21 @@ function replaceWorkspaceSnapshot(database: DatabaseSync, snapshot: WorkspaceImp
         `
           UPDATE workspaces
           SET active_game_id = ?,
+              active_game_folder_name = ?,
               current_user_id = ?,
+              directory_index_needs_export = ?,
               updated_at = ?
           WHERE id = ?
         `
       )
-      .run(snapshot.game?.id ?? null, snapshot.workspace.currentUserId ?? null, snapshot.workspace.updatedAt, snapshot.workspace.id);
+      .run(
+        snapshot.game?.id ?? null,
+        snapshot.workspace.activeGameFolderName ?? null,
+        snapshot.workspace.currentUserId ?? null,
+        snapshot.workspace.directoryIndexNeedsExport ? 1 : 0,
+        snapshot.workspace.updatedAt,
+        snapshot.workspace.id
+      );
     database.exec('COMMIT;');
   } catch (error) {
     database.exec('ROLLBACK;');
@@ -712,7 +961,18 @@ function getWorkspace(database: DatabaseSync, workspaceId: WorkspaceId): Workspa
   const row = database
     .prepare(
       `
-        SELECT id, root_path, context_path, active_game_id, current_user_id, schema_version, created_at, updated_at
+        SELECT
+          id,
+          root_path,
+          context_path,
+          marker_path,
+          active_game_id,
+          active_game_folder_name,
+          current_user_id,
+          directory_index_needs_export,
+          schema_version,
+          created_at,
+          updated_at
         FROM workspaces
         WHERE id = ?
       `
@@ -738,7 +998,6 @@ function getGameNode(database: DatabaseSync, workspaceId: WorkspaceId): GameNode
           current_operation_goal,
           current_main_problems,
           main_optimization_directions,
-          notes,
           cover_image_id,
           creator_id,
           last_editor_id,
@@ -768,7 +1027,7 @@ function createGameNode(database: DatabaseSync, input: CreateGameNodeInput, crea
   const game: GameNode = {
     ...normalizeGameEditableFields(input),
     nodeType: NodeType.Game,
-    id: normalizeGameNodeId(input.id, input.gameName),
+    id: createNextNodeId(database, input.workspaceId, 'game'),
     creatorId,
     lastEditorId: creatorId,
     createdAt: now,
@@ -783,11 +1042,13 @@ function createGameNode(database: DatabaseSync, input: CreateGameNodeInput, crea
         `
           UPDATE workspaces
           SET active_game_id = ?,
+              active_game_folder_name = ?,
+              directory_index_needs_export = 1,
               updated_at = ?
           WHERE id = ?
         `
       )
-      .run(game.id, now, input.workspaceId);
+      .run(game.id, createGameFolderName(game.gameName), now, input.workspaceId);
     database.exec('COMMIT;');
   } catch (error) {
     database.exec('ROLLBACK;');
@@ -833,7 +1094,6 @@ function updateGameNode(
               current_operation_goal = ?,
               current_main_problems = ?,
               main_optimization_directions = ?,
-              notes = ?,
               cover_image_id = ?,
               last_editor_id = ?,
               updated_at = ?
@@ -852,14 +1112,13 @@ function updateGameNode(
         nextGame.currentOperationGoal ?? null,
         nextGame.currentMainProblems ?? null,
         nextGame.mainOptimizationDirections ?? null,
-        nextGame.notes ?? null,
         nextGame.coverImageId ?? null,
         nextGame.lastEditorId,
         nextGame.updatedAt,
         workspaceId,
         nextGame.id
       );
-    database.prepare('UPDATE workspaces SET updated_at = ? WHERE id = ?').run(now, workspaceId);
+    database.prepare('UPDATE workspaces SET directory_index_needs_export = 1, updated_at = ? WHERE id = ?').run(now, workspaceId);
     database.exec('COMMIT;');
   } catch (error) {
     database.exec('ROLLBACK;');
@@ -867,6 +1126,53 @@ function updateGameNode(
   }
 
   return nextGame;
+}
+
+function deleteGameNode(database: DatabaseSync, input: DeleteGameNodeInput): void {
+  const existingGame = getGameNode(database, input.workspaceId);
+
+  if (!existingGame) {
+    throw new Error(`Game node not found for workspace: ${input.workspaceId}`);
+  }
+
+  const now = new Date().toISOString();
+  const moduleIds = getModuleNodes(database, input.workspaceId).map((module) => module.id);
+  const contentIds = getContentNodes(database, input.workspaceId).map((content) => content.id);
+
+  database.exec('BEGIN IMMEDIATE;');
+  try {
+    const deleteLinks = database.prepare('DELETE FROM node_image_links WHERE node_type = ? AND node_id = ?');
+
+    deleteLinks.run(NodeType.Game, existingGame.id);
+    for (const moduleId of moduleIds) {
+      deleteLinks.run(NodeType.Module, moduleId);
+    }
+    for (const contentId of contentIds) {
+      deleteLinks.run(NodeType.Content, contentId);
+    }
+
+    database.prepare('DELETE FROM content_nodes WHERE workspace_id = ?').run(input.workspaceId);
+    database.prepare('DELETE FROM module_nodes WHERE workspace_id = ?').run(input.workspaceId);
+    database.prepare('DELETE FROM node_image_links WHERE image_id IN (SELECT id FROM image_assets WHERE workspace_id = ?)').run(input.workspaceId);
+    database.prepare('DELETE FROM image_assets WHERE workspace_id = ?').run(input.workspaceId);
+    database.prepare('DELETE FROM game_nodes WHERE workspace_id = ? AND id = ?').run(input.workspaceId, existingGame.id);
+    database
+      .prepare(
+        `
+          UPDATE workspaces
+          SET active_game_id = NULL,
+              active_game_folder_name = NULL,
+              directory_index_needs_export = 1,
+              updated_at = ?
+          WHERE id = ?
+        `
+      )
+      .run(now, input.workspaceId);
+    database.exec('COMMIT;');
+  } catch (error) {
+    database.exec('ROLLBACK;');
+    throw error;
+  }
 }
 
 function insertGameNode(database: DatabaseSync, workspaceId: WorkspaceId, game: GameNode): void {
@@ -886,14 +1192,13 @@ function insertGameNode(database: DatabaseSync, workspaceId: WorkspaceId, game: 
           current_operation_goal,
           current_main_problems,
           main_optimization_directions,
-          notes,
           cover_image_id,
           creator_id,
           last_editor_id,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     )
     .run(
@@ -909,7 +1214,6 @@ function insertGameNode(database: DatabaseSync, workspaceId: WorkspaceId, game: 
       game.currentOperationGoal ?? null,
       game.currentMainProblems ?? null,
       game.mainOptimizationDirections ?? null,
-      game.notes ?? null,
       game.coverImageId ?? null,
       game.creatorId,
       game.lastEditorId,
@@ -1003,7 +1307,7 @@ function createModuleNode(database: DatabaseSync, input: CreateModuleNodeInput, 
   const module: ModuleNode = {
     ...normalizeModuleEditableFields(input),
     nodeType: NodeType.Module,
-    id: normalizeModuleNodeId(input.id, input.moduleName),
+    id: createNextNodeId(database, input.workspaceId, 'module'),
     gameId: game.id,
     gameVersion: game.gameVersion,
     creatorId,
@@ -1018,7 +1322,7 @@ function createModuleNode(database: DatabaseSync, input: CreateModuleNodeInput, 
   try {
     insertModuleNode(database, input.workspaceId, module);
     replaceModuleImageLinks(database, module.id, module.imageIds, now);
-    database.prepare('UPDATE workspaces SET updated_at = ? WHERE id = ?').run(now, input.workspaceId);
+    database.prepare('UPDATE workspaces SET directory_index_needs_export = 1, updated_at = ? WHERE id = ?').run(now, input.workspaceId);
     database.exec('COMMIT;');
   } catch (error) {
     database.exec('ROLLBACK;');
@@ -1080,7 +1384,7 @@ function updateModuleNode(database: DatabaseSync, input: UpdateModuleNodeInput, 
         nextModule.id
       );
     replaceModuleImageLinks(database, nextModule.id, nextModule.imageIds, now);
-    database.prepare('UPDATE workspaces SET updated_at = ? WHERE id = ?').run(now, input.workspaceId);
+    database.prepare('UPDATE workspaces SET directory_index_needs_export = 1, updated_at = ? WHERE id = ?').run(now, input.workspaceId);
     database.exec('COMMIT;');
   } catch (error) {
     database.exec('ROLLBACK;');
@@ -1111,7 +1415,7 @@ function deleteModuleNode(database: DatabaseSync, input: DeleteModuleNodeInput):
     database.prepare('DELETE FROM node_image_links WHERE node_type = ? AND node_id = ?').run(NodeType.Module, input.id);
     database.prepare('DELETE FROM content_nodes WHERE workspace_id = ? AND module_id = ?').run(input.workspaceId, input.id);
     database.prepare('DELETE FROM module_nodes WHERE workspace_id = ? AND id = ?').run(input.workspaceId, input.id);
-    database.prepare('UPDATE workspaces SET updated_at = ? WHERE id = ?').run(now, input.workspaceId);
+    database.prepare('UPDATE workspaces SET directory_index_needs_export = 1, updated_at = ? WHERE id = ?').run(now, input.workspaceId);
     database.exec('COMMIT;');
   } catch (error) {
     database.exec('ROLLBACK;');
@@ -1326,7 +1630,7 @@ function createContentNode(database: DatabaseSync, input: CreateContentNodeInput
   const content: ContentNode = {
     ...editableFields,
     nodeType: NodeType.Content,
-    id: normalizeContentNodeId(input.id, editableFields.title),
+    id: createNextNodeId(database, input.workspaceId, 'content'),
     gameId: module.gameId,
     gameVersion: module.gameVersion,
     moduleId: module.id,
@@ -1343,7 +1647,7 @@ function createContentNode(database: DatabaseSync, input: CreateContentNodeInput
   try {
     insertContentNode(database, input.workspaceId, content);
     replaceContentImageLinks(database, content.id, content.imageIds, now);
-    database.prepare('UPDATE workspaces SET updated_at = ? WHERE id = ?').run(now, input.workspaceId);
+    database.prepare('UPDATE workspaces SET directory_index_needs_export = 1, updated_at = ? WHERE id = ?').run(now, input.workspaceId);
     database.exec('COMMIT;');
   } catch (error) {
     database.exec('ROLLBACK;');
@@ -1413,7 +1717,7 @@ function updateContentNode(database: DatabaseSync, input: UpdateContentNodeInput
         nextContent.id
       );
     replaceContentImageLinks(database, nextContent.id, nextContent.imageIds, now);
-    database.prepare('UPDATE workspaces SET updated_at = ? WHERE id = ?').run(now, input.workspaceId);
+    database.prepare('UPDATE workspaces SET directory_index_needs_export = 1, updated_at = ? WHERE id = ?').run(now, input.workspaceId);
     database.exec('COMMIT;');
   } catch (error) {
     database.exec('ROLLBACK;');
@@ -1436,7 +1740,7 @@ function deleteContentNode(database: DatabaseSync, input: DeleteContentNodeInput
   try {
     database.prepare('DELETE FROM node_image_links WHERE node_type = ? AND node_id = ?').run(NodeType.Content, input.id);
     database.prepare('DELETE FROM content_nodes WHERE workspace_id = ? AND id = ?').run(input.workspaceId, input.id);
-    database.prepare('UPDATE workspaces SET updated_at = ? WHERE id = ?').run(now, input.workspaceId);
+    database.prepare('UPDATE workspaces SET directory_index_needs_export = 1, updated_at = ? WHERE id = ?').run(now, input.workspaceId);
     database.exec('COMMIT;');
   } catch (error) {
     database.exec('ROLLBACK;');
@@ -1614,7 +1918,17 @@ function createImageAsset(database: DatabaseSync, workspaceId: WorkspaceId, imag
     throw new Error(`Workspace has no active game: ${workspaceId}`);
   }
 
-  insertImageAsset(database, workspaceId, image);
+  database.exec('BEGIN IMMEDIATE;');
+  try {
+    insertImageAsset(database, workspaceId, image);
+    database
+      .prepare('UPDATE workspaces SET directory_index_needs_export = 1, updated_at = ? WHERE id = ?')
+      .run(image.updatedAt, workspaceId);
+    database.exec('COMMIT;');
+  } catch (error) {
+    database.exec('ROLLBACK;');
+    throw error;
+  }
 
   return image;
 }
@@ -1708,7 +2022,7 @@ function deleteImageAsset(database: DatabaseSync, input: DeleteImageAssetInput):
       .run(now, input.workspaceId, image.id);
     database.prepare('DELETE FROM node_image_links WHERE image_id = ?').run(image.id);
     database.prepare('DELETE FROM image_assets WHERE workspace_id = ? AND id = ?').run(input.workspaceId, image.id);
-    database.prepare('UPDATE workspaces SET updated_at = ? WHERE id = ?').run(now, input.workspaceId);
+    database.prepare('UPDATE workspaces SET directory_index_needs_export = 1, updated_at = ? WHERE id = ?').run(now, input.workspaceId);
     database.exec('COMMIT;');
   } catch (error) {
     database.exec('ROLLBACK;');
@@ -1742,7 +2056,6 @@ function normalizeGameEditableFields(input: CreateGameNodeInput): Omit<
     currentOperationGoal: optionalTrim(input.currentOperationGoal),
     currentMainProblems: optionalTrim(input.currentMainProblems),
     mainOptimizationDirections: optionalTrim(input.mainOptimizationDirections),
-    notes: optionalTrim(input.notes),
     coverImageId: optionalTrim(input.coverImageId)
   };
 }
@@ -1800,49 +2113,53 @@ function optionalTrim(value: string | undefined): string | undefined {
   return nextValue ? nextValue : undefined;
 }
 
-function normalizeGameNodeId(inputId: string | undefined, gameName: string): string {
-  const source = inputId?.trim() || gameName.trim();
-  const slug = source
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9_-]+/g, '_')
-    .replaceAll(/_+/g, '_')
-    .replaceAll(/^_+|_+$/g, '');
+function createNextNodeId(database: DatabaseSync, workspaceId: WorkspaceId, prefix: 'game' | 'module' | 'content'): string {
+  const tableNameByPrefix = {
+    game: 'game_nodes',
+    module: 'module_nodes',
+    content: 'content_nodes'
+  } as const;
+  const existingIds = database
+    .prepare(`SELECT id FROM ${tableNameByPrefix[prefix]} WHERE workspace_id = ? ORDER BY id ASC`)
+    .all(workspaceId)
+    .map((row) => String(row.id));
 
-  if (slug) {
-    return slug;
-  }
-
-  return `game_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+  return createNextSequentialId(prefix, existingIds);
 }
 
-function normalizeModuleNodeId(inputId: string | undefined, moduleName: string): string {
-  const source = inputId?.trim() || moduleName.trim();
-  const slug = source
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9_-]+/g, '_')
-    .replaceAll(/_+/g, '_')
-    .replaceAll(/^_+|_+$/g, '');
+function createNextSequentialId(prefix: 'game' | 'module' | 'content' | 'image', existingIds: string[]): string {
+  const pattern = new RegExp(`^${prefix}_(\\d+)$`);
+  let nextNumber = 1;
 
-  if (slug) {
-    return slug;
+  for (const id of existingIds) {
+    const match = id.match(pattern);
+
+    if (match) {
+      nextNumber = Math.max(nextNumber, Number(match[1]) + 1);
+    }
   }
 
-  return `module_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+  const existingIdSet = new Set(existingIds);
+  let nextId = `${prefix}_${String(nextNumber).padStart(3, '0')}`;
+
+  while (existingIdSet.has(nextId)) {
+    nextNumber += 1;
+    nextId = `${prefix}_${String(nextNumber).padStart(3, '0')}`;
+  }
+
+  return nextId;
 }
 
-function normalizeContentNodeId(inputId: string | undefined, title: string): string {
-  const source = inputId?.trim() || title.trim();
-  const slug = source
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9_-]+/g, '_')
-    .replaceAll(/_+/g, '_')
-    .replaceAll(/^_+|_+$/g, '');
+function createGameFolderName(gameName: string): string {
+  const folderName = `${gameName.trim()}游戏上下文`
+    .trim()
+    .replaceAll(/[<>:"/\\|?*\u0000-\u001F]+/g, '-')
+    .replaceAll(/\s+/g, '-')
+    .replaceAll(/-+/g, '-')
+    .replaceAll(/^\.+|\.+$/g, '')
+    .replaceAll(/^-+|-+$/g, '');
 
-  if (slug) {
-    return slug;
-  }
-
-  return `content_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+  return folderName || '游戏上下文';
 }
 
 function validateImageIds(database: DatabaseSync, workspaceId: WorkspaceId, gameId: string, imageIds: string[]): void {
@@ -1917,8 +2234,11 @@ function mapWorkspaceRow(row: unknown): WorkspaceConfig {
     id: string;
     root_path: string;
     context_path: string;
+    marker_path: string | null;
     active_game_id: string | null;
+    active_game_folder_name: string | null;
     current_user_id: string | null;
+    directory_index_needs_export: number;
     schema_version: number;
     created_at: string;
     updated_at: string;
@@ -1928,8 +2248,11 @@ function mapWorkspaceRow(row: unknown): WorkspaceConfig {
     id: workspaceRow.id,
     rootPath: workspaceRow.root_path,
     contextPath: workspaceRow.context_path,
+    markerPath: workspaceRow.marker_path ?? undefined,
     activeGameId: workspaceRow.active_game_id ?? undefined,
+    activeGameFolderName: workspaceRow.active_game_folder_name ?? undefined,
     currentUserId: workspaceRow.current_user_id ?? undefined,
+    directoryIndexNeedsExport: workspaceRow.directory_index_needs_export === 1,
     schemaVersion: workspaceRow.schema_version,
     createdAt: workspaceRow.created_at,
     updatedAt: workspaceRow.updated_at
@@ -1949,7 +2272,6 @@ function mapGameNodeRow(row: unknown): GameNode {
     current_operation_goal: string | null;
     current_main_problems: string | null;
     main_optimization_directions: string | null;
-    notes: string | null;
     cover_image_id: string | null;
     creator_id: string;
     last_editor_id: string;
@@ -1970,7 +2292,6 @@ function mapGameNodeRow(row: unknown): GameNode {
     currentOperationGoal: gameRow.current_operation_goal ?? undefined,
     currentMainProblems: gameRow.current_main_problems ?? undefined,
     mainOptimizationDirections: gameRow.main_optimization_directions ?? undefined,
-    notes: gameRow.notes ?? undefined,
     coverImageId: gameRow.cover_image_id ?? undefined,
     creatorId: gameRow.creator_id,
     lastEditorId: gameRow.last_editor_id,
@@ -2095,7 +2416,6 @@ function mapApiConfigRow(row: unknown): ApiConfig {
     base_url: string;
     api_key: string | null;
     model_name: string;
-    enabled: number;
     created_at: string;
     updated_at: string;
   };
@@ -2105,7 +2425,6 @@ function mapApiConfigRow(row: unknown): ApiConfig {
     baseUrl: apiConfigRow.base_url,
     apiKey: apiConfigRow.api_key ?? undefined,
     modelName: apiConfigRow.model_name,
-    enabled: apiConfigRow.enabled === 1,
     createdAt: apiConfigRow.created_at,
     updatedAt: apiConfigRow.updated_at
   };

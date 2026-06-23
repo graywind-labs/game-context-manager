@@ -54,7 +54,6 @@ export const EDITABLE_FIELDS = {
     'currentOperationGoal',
     'currentMainProblems',
     'mainOptimizationDirections',
-    'notes',
     'coverImageId'
   ],
   [NodeType.Module]: [

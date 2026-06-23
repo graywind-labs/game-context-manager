@@ -17,7 +17,8 @@ import {
 } from '../../shared/index.js';
 import type { WorkspaceImportSnapshot } from './sqliteService.js';
 
-export const WORKSPACE_CONTEXT_DIR_NAME = 'game-context';
+export const WORKSPACE_MARKER_FILE_NAME = '.game-context-manager.yml';
+export const WORKSPACE_GENERATOR_ID = 'game-context-manager';
 export const WORKSPACE_SCHEMA_VERSION = 1;
 
 interface CreateWorkspaceStructureOptions {
@@ -55,6 +56,16 @@ interface ManifestImageEntry {
   linked_nodes?: string[];
 }
 
+interface WorkspaceMarker {
+  schema_version?: number;
+  workspace_id?: string;
+  generator?: string;
+  created_at?: string;
+  updated_at?: string;
+  main_node_id?: string | null;
+  main_node_folder_name?: string | null;
+}
+
 interface ImageCatalogEntry {
   name?: string;
   original_file_name?: string;
@@ -71,35 +82,32 @@ export function createWorkspaceStructure(
   options: CreateWorkspaceStructureOptions
 ): WorkspaceCreationSummary {
   const rootPath = resolve(options.selectedDirectory);
-  const contextPath = join(rootPath, WORKSPACE_CONTEXT_DIR_NAME);
+  const contextPath = rootPath;
   const now = options.now ?? new Date();
   const timestamp = now.toISOString();
   const workspaceId = createWorkspaceId(contextPath);
   const createdPaths: string[] = [];
   const existingPaths: string[] = [];
+  const markerPath = join(contextPath, WORKSPACE_MARKER_FILE_NAME);
 
-  for (const directoryPath of [contextPath, join(contextPath, 'games')]) {
+  for (const directoryPath of [contextPath]) {
     const result = ensureDirectory(directoryPath);
     pushPathResult(rootPath, result, createdPaths, existingPaths);
   }
 
-  const manifest = createInitialManifest(timestamp);
   const files = {
     agentsPath: join(contextPath, 'AGENTS.md'),
     claudePath: join(contextPath, 'CLAUDE.md'),
-    usagePath: join(contextPath, 'USAGE.md'),
-    readmePath: join(contextPath, 'README.md'),
     manifestPath: join(contextPath, 'manifest.yml'),
-    gamesPath: join(contextPath, 'games')
+    markerPath
   };
 
-  const fileResults = [
-    writeTextFileIfMissing(files.agentsPath, DOWNSTREAM_AGENTS_MD),
-    writeTextFileIfMissing(files.claudePath, DOWNSTREAM_CLAUDE_MD),
-    writeTextFileIfMissing(files.usagePath, DOWNSTREAM_USAGE_MD),
-    writeTextFileIfMissing(files.readmePath, WORKSPACE_README_MD),
-    writeTextFileIfMissing(files.manifestPath, stringify(manifest))
-  ];
+  const marker = createWorkspaceMarker({
+    workspaceId,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  });
+  const fileResults = [writeTextFileIfMissing(markerPath, stringify(marker))];
 
   for (const result of fileResults) {
     pushPathResult(rootPath, result, createdPaths, existingPaths);
@@ -109,6 +117,7 @@ export function createWorkspaceStructure(
     id: workspaceId,
     rootPath,
     contextPath,
+    markerPath,
     schemaVersion: WORKSPACE_SCHEMA_VERSION,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -119,37 +128,49 @@ export function createWorkspaceStructure(
 }
 
 export function importWorkspaceFromDirectory(selectedDirectory: string, currentUserId?: string, now = new Date()): ImportedWorkspaceData {
-  const contextPath = resolveContextPath(selectedDirectory);
-  const rootPath = dirname(contextPath);
+  const markerPath = resolveSingleWorkspaceMarkerPath(selectedDirectory);
+  const contextPath = dirname(markerPath);
+  const rootPath = contextPath;
   const timestamp = now.toISOString();
-  const workspaceId = createWorkspaceId(contextPath);
+  const marker = readWorkspaceMarker(markerPath);
+  const workspaceId = marker.workspace_id ?? createWorkspaceId(contextPath);
   const manifestPath = join(contextPath, 'manifest.yml');
   const manifest = readYamlFile(manifestPath);
   const warnings: string[] = [];
-
-  if (!existsSync(join(contextPath, 'games'))) {
-    throw new Error(`Invalid game-context workspace: missing ${join(contextPath, 'games')}`);
-  }
 
   if (!existsSync(manifestPath)) {
     warnings.push('manifest.yml is missing; scanned Markdown frontmatter instead.');
   }
 
-  const gameMarkdownPath = findGameMarkdownPath(contextPath, manifest);
-  const game = parseGameNode(gameMarkdownPath, timestamp);
-  const modulePaths = findNodeMarkdownPaths(contextPath, manifest, 'modules', game.id);
-  const contentPaths = findNodeMarkdownPaths(contextPath, manifest, 'contents', game.id);
-  const modules = modulePaths.map((filePath) => parseModuleNode(filePath, game, timestamp));
-  const contents = contentPaths.map((filePath) => parseContentNode(filePath, game, timestamp));
-  const images = parseImages(contextPath, game, manifest, timestamp);
-  const imageLinks = buildImageLinks(game, modules, contents, images, manifest);
+  const markerGameFolderName = stringValue(marker.main_node_folder_name);
+  const gameMarkdownPath = findOptionalGameMarkdownPath(contextPath, manifest, markerGameFolderName);
+  const gameFolderName = gameMarkdownPath ? basename(dirname(gameMarkdownPath)) : undefined;
+
+  if (gameFolderName && !existsSync(join(contextPath, gameFolderName, 'INDEX.md'))) {
+    warnings.push('INDEX.md is missing; scanned node Markdown files instead.');
+  }
+
+  if (gameFolderName && !existsSync(join(contextPath, gameFolderName, 'image_catalog.yml'))) {
+    warnings.push('image_catalog.yml is missing; scanned image files and node frontmatter instead.');
+  }
+
+  const game = gameMarkdownPath ? parseGameNode(gameMarkdownPath, timestamp) : undefined;
+  const modulePaths = game && gameFolderName ? findNodeMarkdownPaths(contextPath, manifest, 'modules', gameFolderName) : [];
+  const contentPaths = game && gameFolderName ? findNodeMarkdownPaths(contextPath, manifest, 'contents', gameFolderName) : [];
+  const modules = game ? modulePaths.map((filePath) => parseModuleNode(filePath, game, timestamp)) : [];
+  const contents = game ? contentPaths.map((filePath) => parseContentNode(filePath, game, timestamp)) : [];
+  const images = game && gameFolderName ? parseImages(contextPath, gameFolderName, game, manifest, timestamp) : [];
+  const imageLinks = game ? buildImageLinks(game, modules, contents, images, manifest) : [];
   const users = collectImportedUsers(game, modules, contents, images, currentUserId, timestamp);
   const workspace: WorkspaceConfig = {
     id: workspaceId,
     rootPath,
     contextPath,
-    activeGameId: game.id,
+    markerPath,
+    activeGameId: game?.id,
+    activeGameFolderName: gameFolderName,
     currentUserId: currentUserId ?? users[0]?.id,
+    directoryIndexNeedsExport: warnings.some((warning) => warning.includes('manifest.yml') || warning.includes('INDEX.md') || warning.includes('image_catalog.yml')),
     schemaVersion: WORKSPACE_SCHEMA_VERSION,
     createdAt: timestamp,
     updatedAt: timestamp
@@ -158,21 +179,20 @@ export function importWorkspaceFromDirectory(selectedDirectory: string, currentU
     id: workspace.id,
     rootPath,
     contextPath,
+    markerPath,
     schemaVersion: workspace.schemaVersion,
     createdAt: workspace.createdAt,
     updatedAt: workspace.updatedAt,
     files: {
       agentsPath: join(contextPath, 'AGENTS.md'),
       claudePath: join(contextPath, 'CLAUDE.md'),
-      usagePath: join(contextPath, 'USAGE.md'),
-      readmePath: join(contextPath, 'README.md'),
       manifestPath,
-      gamesPath: join(contextPath, 'games')
+      markerPath
     },
     createdPaths: [],
-    existingPaths: getExistingWorkspacePaths(rootPath, contextPath),
+    existingPaths: getExistingWorkspacePaths(rootPath, contextPath, gameFolderName),
     imported: {
-      gameCount: 1,
+      gameCount: game ? 1 : 0,
       moduleCount: modules.length,
       contentCount: contents.length,
       imageCount: images.length
@@ -194,25 +214,130 @@ export function importWorkspaceFromDirectory(selectedDirectory: string, currentU
   };
 }
 
+export function writeWorkspaceMarker(workspace: WorkspaceConfig, game?: GameNode, now = new Date()): void {
+  const markerPath = workspace.markerPath ?? join(workspace.contextPath, WORKSPACE_MARKER_FILE_NAME);
+  const existingMarker = existsSync(markerPath) ? readWorkspaceMarker(markerPath) : undefined;
+  const timestamp = now.toISOString();
+  const marker = createWorkspaceMarker({
+    workspaceId: workspace.id,
+    createdAt: stringValue(existingMarker?.created_at) ?? workspace.createdAt,
+    updatedAt: timestamp,
+    mainNodeId: game?.id ?? workspace.activeGameId,
+    mainNodeFolderName: workspace.activeGameFolderName
+  });
+
+  atomicWriteTextFile(markerPath, stringify(marker));
+}
+
+export function createGameFolderName(gameName: string): string {
+  const folderName = `${gameName.trim()}游戏上下文`
+    .trim()
+    .replaceAll(/[<>:"/\\|?*\u0000-\u001F]+/g, '-')
+    .replaceAll(/\s+/g, '-')
+    .replaceAll(/-+/g, '-')
+    .replaceAll(/^\.+|\.+$/g, '')
+    .replaceAll(/^-+|-+$/g, '');
+
+  return folderName || '游戏上下文';
+}
+
 function createWorkspaceId(contextPath: string): string {
   const hash = createHash('sha256').update(resolve(contextPath).toLowerCase()).digest('hex');
   return `workspace_${hash.slice(0, 16)}`;
 }
 
-function resolveContextPath(selectedDirectory: string): string {
+function createWorkspaceMarker(input: {
+  workspaceId: string;
+  createdAt: string;
+  updatedAt: string;
+  mainNodeId?: string;
+  mainNodeFolderName?: string;
+}): WorkspaceMarker {
+  return {
+    schema_version: WORKSPACE_SCHEMA_VERSION,
+    workspace_id: input.workspaceId,
+    generator: WORKSPACE_GENERATOR_ID,
+    created_at: input.createdAt,
+    updated_at: input.updatedAt,
+    main_node_id: input.mainNodeId ?? null,
+    main_node_folder_name: input.mainNodeFolderName ?? null
+  };
+}
+
+function resolveSingleWorkspaceMarkerPath(selectedDirectory: string): string {
   const selectedPath = resolve(selectedDirectory);
+  const markerPaths = findWorkspaceMarkerPaths(selectedPath).filter((filePath) => {
+    try {
+      readWorkspaceMarker(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 
-  if (basename(selectedPath) === WORKSPACE_CONTEXT_DIR_NAME) {
-    return selectedPath;
+  if (markerPaths.length === 0) {
+    throw new Error('No valid .game-context-manager.yml marker was found in the selected folder.');
   }
 
-  const nestedContextPath = join(selectedPath, WORKSPACE_CONTEXT_DIR_NAME);
-
-  if (existsSync(nestedContextPath)) {
-    return nestedContextPath;
+  if (markerPaths.length > 1) {
+    throw new Error(`Multiple game context workspace markers were found: ${markerPaths.join(', ')}`);
   }
 
-  throw new Error(`Select an existing ${WORKSPACE_CONTEXT_DIR_NAME} folder or its parent folder.`);
+  return markerPaths[0];
+}
+
+function findWorkspaceMarkerPaths(directoryPath: string): string[] {
+  if (!existsSync(directoryPath)) {
+    return [];
+  }
+
+  const stats = statSync(directoryPath);
+
+  if (!stats.isDirectory()) {
+    return [];
+  }
+
+  const markerPaths: string[] = [];
+
+  for (const entryName of readdirSync(directoryPath)) {
+    const entryPath = join(directoryPath, entryName);
+    const entryStats = statSync(entryPath);
+
+    if (entryStats.isFile() && entryName === WORKSPACE_MARKER_FILE_NAME) {
+      markerPaths.push(entryPath);
+      continue;
+    }
+
+    if (entryStats.isDirectory()) {
+      markerPaths.push(...findWorkspaceMarkerPaths(entryPath));
+    }
+  }
+
+  return markerPaths.sort((left, right) => left.localeCompare(right));
+}
+
+function readWorkspaceMarker(markerPath: string): WorkspaceMarker {
+  const parsed = parse(readFileSync(markerPath, 'utf8'));
+
+  if (!isRecord(parsed)) {
+    throw new Error(`Workspace marker is not a YAML object: ${markerPath}`);
+  }
+
+  const marker = parsed as WorkspaceMarker;
+
+  if (marker.schema_version !== WORKSPACE_SCHEMA_VERSION) {
+    throw new Error(`Unsupported workspace marker schema version in ${markerPath}`);
+  }
+
+  if (marker.generator !== WORKSPACE_GENERATOR_ID) {
+    throw new Error(`Unsupported workspace marker generator in ${markerPath}`);
+  }
+
+  if (!stringValue(marker.workspace_id)) {
+    throw new Error(`Workspace marker is missing workspace_id: ${markerPath}`);
+  }
+
+  return marker;
 }
 
 function readYamlFile(filePath: string): Record<string, unknown> {
@@ -225,7 +350,11 @@ function readYamlFile(filePath: string): Record<string, unknown> {
   return isRecord(parsed) ? parsed : {};
 }
 
-function findGameMarkdownPath(contextPath: string, manifest: Record<string, unknown>): string {
+function findGameMarkdownPath(
+  contextPath: string,
+  manifest: Record<string, unknown>,
+  markerGameFolderName?: string
+): string {
   const manifestGame = isRecord(manifest.game) ? manifest.game : undefined;
   const manifestPath = stringValue(manifestGame?.path);
 
@@ -233,13 +362,16 @@ function findGameMarkdownPath(contextPath: string, manifest: Record<string, unkn
     return requireFile(contextPath, manifestPath);
   }
 
-  const gamesPath = join(contextPath, 'games');
-  const gameMarkdownPaths = listDirectories(gamesPath)
+  if (markerGameFolderName) {
+    return requireFile(contextPath, `${markerGameFolderName}/game.md`);
+  }
+
+  const gameMarkdownPaths = listDirectories(contextPath)
     .map((gameDirectory) => join(gameDirectory, 'game.md'))
     .filter((filePath) => existsSync(filePath));
 
   if (gameMarkdownPaths.length === 0) {
-    throw new Error(`No game.md found under ${gamesPath}`);
+    throw new Error(`No game.md found under ${contextPath}`);
   }
 
   if (gameMarkdownPaths.length > 1) {
@@ -249,11 +381,27 @@ function findGameMarkdownPath(contextPath: string, manifest: Record<string, unkn
   return gameMarkdownPaths[0];
 }
 
+function findOptionalGameMarkdownPath(
+  contextPath: string,
+  manifest: Record<string, unknown>,
+  markerGameFolderName?: string
+): string | undefined {
+  try {
+    return findGameMarkdownPath(contextPath, manifest, markerGameFolderName);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('No game.md found under')) {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
 function findNodeMarkdownPaths(
   contextPath: string,
   manifest: Record<string, unknown>,
   key: 'modules' | 'contents',
-  gameId: string
+  gameFolderName: string
 ): string[] {
   const manifestEntries = isRecord(manifest[key]) ? Object.values(manifest[key]) : [];
   const manifestPaths = manifestEntries
@@ -264,16 +412,31 @@ function findNodeMarkdownPaths(
     return manifestPaths.map((filePath) => requireFile(contextPath, filePath));
   }
 
-  const directoryName = key === 'modules' ? 'modules' : 'contents';
-  const directoryPath = join(contextPath, 'games', gameId, directoryName);
+  const modulesDirectoryPath = join(contextPath, gameFolderName, 'modules');
 
-  if (!existsSync(directoryPath)) {
+  if (!existsSync(modulesDirectoryPath)) {
     return [];
   }
 
-  return readdirSync(directoryPath)
-    .filter((fileName) => fileName.endsWith('.md'))
-    .map((fileName) => join(directoryPath, fileName))
+  if (key === 'modules') {
+    return listDirectories(modulesDirectoryPath)
+      .map((moduleDirectory) => join(moduleDirectory, 'module.md'))
+      .filter((filePath) => existsSync(filePath))
+      .sort((left, right) => left.localeCompare(right));
+  }
+
+  return listDirectories(modulesDirectoryPath)
+    .flatMap((moduleDirectory) => {
+      const contentsDirectoryPath = join(moduleDirectory, 'contents');
+
+      if (!existsSync(contentsDirectoryPath)) {
+        return [];
+      }
+
+      return readdirSync(contentsDirectoryPath)
+        .filter((fileName) => fileName.endsWith('.md'))
+        .map((fileName) => join(contentsDirectoryPath, fileName));
+    })
     .sort((left, right) => left.localeCompare(right));
 }
 
@@ -307,7 +470,6 @@ function parseGameNode(filePath: string, fallbackTimestamp: string): GameNode {
     currentOperationGoal: optionalSection(parsed.body, '当前运营目标'),
     currentMainProblems: optionalSection(parsed.body, '当前主要问题'),
     mainOptimizationDirections: optionalSection(parsed.body, '主要优化方向'),
-    notes: optionalSection(parsed.body, '补充说明'),
     coverImageId: optionalString(parsed.frontmatter.cover_image) ?? optionalSection(parsed.body, '主图ID'),
     creatorId: requiredString(parsed.frontmatter.creator_id, `creator_id in ${filePath}`),
     lastEditorId: requiredString(parsed.frontmatter.last_editor_id, `last_editor_id in ${filePath}`),
@@ -332,9 +494,9 @@ function parseModuleNode(filePath: string, game: GameNode, fallbackTimestamp: st
     resourceFlow: optionalSection(parsed.body, '资源产出/消耗'),
     imageIds: stringArrayValue(parsed.frontmatter.images),
     playerMainActions: optionalSection(parsed.body, '玩家主要操作'),
-    subjectiveFun: optionalSection(parsed.body, '乐趣点（主观）'),
-    subjectiveProblems: optionalSection(parsed.body, '主要问题（主观）'),
-    subjectiveOptimizationDirections: optionalSection(parsed.body, '优化方向（主观）'),
+    subjectiveFun: optionalSectionAny(parsed.body, ['乐趣点', '乐趣点（主观）']),
+    subjectiveProblems: optionalSectionAny(parsed.body, ['主要问题', '主要问题（主观）']),
+    subjectiveOptimizationDirections: optionalSectionAny(parsed.body, ['优化方向', '优化方向（主观）']),
     creatorId: requiredString(parsed.frontmatter.creator_id, `creator_id in ${filePath}`),
     lastEditorId: requiredString(parsed.frontmatter.last_editor_id, `last_editor_id in ${filePath}`),
     createdAt,
@@ -360,9 +522,9 @@ function parseContentNode(filePath: string, game: GameNode, fallbackTimestamp: s
     maxMainlineProgress: optionalString(parsed.frontmatter.max_mainline_progress),
     characterLevel: optionalString(parsed.frontmatter.character_level),
     processDescription: optionalSection(parsed.body, '过程说明'),
-    subjectiveFun: optionalSection(parsed.body, '乐趣点（主观）'),
-    subjectiveKnownProblems: optionalSection(parsed.body, '已知问题（主观）'),
-    subjectiveOptimizationDirections: optionalSection(parsed.body, '优化方向（主观）'),
+    subjectiveFun: optionalSectionAny(parsed.body, ['乐趣点', '乐趣点（主观）']),
+    subjectiveKnownProblems: optionalSectionAny(parsed.body, ['已知问题', '已知问题（主观）']),
+    subjectiveOptimizationDirections: optionalSectionAny(parsed.body, ['优化方向', '优化方向（主观）']),
     creatorId: requiredString(parsed.frontmatter.creator_id, `creator_id in ${filePath}`),
     lastEditorId: requiredString(parsed.frontmatter.last_editor_id, `last_editor_id in ${filePath}`),
     createdAt,
@@ -392,20 +554,23 @@ function parseMarkdownWithFrontmatter(filePath: string): ParsedMarkdown {
 
 function parseImages(
   contextPath: string,
+  gameFolderName: string,
   game: GameNode,
   manifest: Record<string, unknown>,
   fallbackTimestamp: string
 ): ImageAsset[] {
-  const catalogPath = join(contextPath, 'games', game.id, 'image_catalog.yml');
+  const catalogPath = join(contextPath, gameFolderName, 'image_catalog.yml');
   const catalog = readYamlFile(catalogPath);
   const catalogImages = isRecord(catalog.images) ? catalog.images : {};
   const manifestImages = isRecord(manifest.images) ? manifest.images : {};
-  const imageIds = new Set([...Object.keys(catalogImages), ...Object.keys(manifestImages)]);
+  const imageFiles = findImageFiles(contextPath, gameFolderName);
+  const imageIds = new Set([...Object.keys(catalogImages), ...Object.keys(manifestImages), ...imageFiles.keys()]);
 
   return [...imageIds].sort((left, right) => left.localeCompare(right)).map((imageId) => {
     const catalogEntry = isRecord(catalogImages[imageId]) ? catalogImages[imageId] as ImageCatalogEntry : {};
     const manifestEntry = isRecord(manifestImages[imageId]) ? manifestImages[imageId] as ManifestImageEntry : {};
-    const relativePath = stringValue(catalogEntry.path) ?? stringValue(manifestEntry.path);
+    const fallbackImage = imageFiles.get(imageId);
+    const relativePath = stringValue(catalogEntry.path) ?? stringValue(manifestEntry.path) ?? fallbackImage?.relativePath;
 
     if (!relativePath) {
       throw new Error(`Image ${imageId} is missing path in manifest or image_catalog.yml.`);
@@ -413,7 +578,7 @@ function parseImages(
 
     return {
       id: imageId,
-      displayName: stringValue(catalogEntry.name) ?? stringValue(manifestEntry.name) ?? imageId,
+      displayName: stringValue(catalogEntry.name) ?? stringValue(manifestEntry.name) ?? fallbackImage?.displayName ?? imageId,
       originalFileName: stringValue(catalogEntry.original_file_name) ?? basename(relativePath),
       relativePath,
       fileType: stringValue(catalogEntry.file_type) ?? stringValue(manifestEntry.file_type) ?? fileTypeFromPath(relativePath),
@@ -423,6 +588,42 @@ function parseImages(
       notes: optionalString(catalogEntry.notes)
     };
   });
+}
+
+function findImageFiles(contextPath: string, gameFolderName: string): Map<string, { displayName: string; relativePath: string }> {
+  const imagesDirectoryPath = join(contextPath, gameFolderName, 'assets', 'images');
+  const images = new Map<string, { displayName: string; relativePath: string }>();
+
+  if (!existsSync(imagesDirectoryPath)) {
+    return images;
+  }
+
+  for (const fileName of readdirSync(imagesDirectoryPath).sort((left, right) => left.localeCompare(right))) {
+    const filePath = join(imagesDirectoryPath, fileName);
+
+    if (!statSync(filePath).isFile()) {
+      continue;
+    }
+
+    const extension = extname(fileName).toLowerCase();
+
+    if (!['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(extension)) {
+      continue;
+    }
+
+    const baseName = basename(fileName, extension);
+    const separatorIndex = baseName.indexOf('__');
+    const imageId = separatorIndex > 0 ? baseName.slice(0, separatorIndex) : baseName;
+    const displayName = separatorIndex > 0 ? baseName.slice(separatorIndex + 2) : imageId;
+    const relativePath = `${gameFolderName}/assets/images/${fileName}`;
+
+    images.set(imageId, {
+      displayName,
+      relativePath
+    });
+  }
+
+  return images;
 }
 
 function buildImageLinks(
@@ -484,7 +685,7 @@ function addImageLink(links: Map<string, NodeImageLink>, nodeType: NodeType, nod
 }
 
 function collectImportedUsers(
-  game: GameNode,
+  game: GameNode | undefined,
   modules: ModuleNode[],
   contents: ContentNode[],
   images: ImageAsset[],
@@ -493,8 +694,10 @@ function collectImportedUsers(
 ): LocalUser[] {
   const users = new Map<string, LocalUser>();
 
-  addImportedUser(users, game.creatorId, game.creatorId, game.createdAt);
-  addImportedUser(users, game.lastEditorId, game.lastEditorId, game.updatedAt);
+  if (game) {
+    addImportedUser(users, game.creatorId, game.creatorId, game.createdAt);
+    addImportedUser(users, game.lastEditorId, game.lastEditorId, game.updatedAt);
+  }
 
   for (const module of modules) {
     addImportedUser(users, module.creatorId, module.creatorId, module.createdAt);
@@ -530,15 +733,19 @@ function addImportedUser(users: Map<string, LocalUser>, userId: string, displayN
   });
 }
 
-function getExistingWorkspacePaths(rootPath: string, contextPath: string): string[] {
+function getExistingWorkspacePaths(rootPath: string, contextPath: string, gameFolderName?: string): string[] {
   return [
     contextPath,
+    join(contextPath, WORKSPACE_MARKER_FILE_NAME),
     join(contextPath, 'AGENTS.md'),
     join(contextPath, 'CLAUDE.md'),
-    join(contextPath, 'USAGE.md'),
-    join(contextPath, 'README.md'),
     join(contextPath, 'manifest.yml'),
-    join(contextPath, 'games')
+    ...(gameFolderName
+      ? [
+          join(contextPath, gameFolderName, 'INDEX.md'),
+          join(contextPath, gameFolderName, 'image_catalog.yml')
+        ]
+      : [])
   ]
     .filter((filePath) => existsSync(filePath))
     .map((filePath) => relative(rootPath, filePath).replaceAll('\\', '/'));
@@ -566,6 +773,18 @@ function optionalSection(body: string, title: string): string | undefined {
   const value = extractSection(body, title);
 
   return value ? value : undefined;
+}
+
+function optionalSectionAny(body: string, titles: string[]): string | undefined {
+  for (const title of titles) {
+    const value = optionalSection(body, title);
+
+    if (value !== undefined) {
+      return value;
+    }
+  }
+
+  return undefined;
 }
 
 function parseProjectStage(value: unknown): ProjectStage {
@@ -696,92 +915,3 @@ function pushPathResult(
     existingPaths.push(relativePath);
   }
 }
-
-function createInitialManifest(generatedAt: string): Record<string, unknown> {
-  return {
-    workspace: {
-      schema_version: WORKSPACE_SCHEMA_VERSION,
-      generated_at: generatedAt,
-      usage: 'USAGE.md',
-      agents: 'AGENTS.md',
-      claude: 'CLAUDE.md'
-    },
-    game: null,
-    modules: {},
-    contents: {},
-    images: {},
-    relations: {
-      node_images: {}
-    },
-    task_context_entries: {
-      start_here: 'USAGE.md',
-      manifest: 'manifest.yml',
-      games: 'games/'
-    }
-  };
-}
-
-const DOWNSTREAM_AGENTS_MD = `# AGENTS.md
-
-This file is for agents reading this generated game context workspace.
-
-## How To Read This Workspace
-
-1. Open \`manifest.yml\` first.
-2. Use the manifest to find the game node, module nodes, content nodes, images, and relation indexes.
-3. Read \`USAGE.md\` for the general workflow before making task-specific assumptions.
-4. Treat Markdown files plus YAML frontmatter as the source of truth for agent-facing context.
-5. Respect manual \`@image_id\` references in node content. They point to images listed in the manifest and image catalog.
-
-## Boundaries
-
-- Do not require the GUI to understand this workspace.
-- Do not send files or images to external services unless the user explicitly asks for that.
-- Do not write API keys or private credentials into Markdown or YAML output.
-- Preserve human-written notes unless the user asks you to edit them.
-`;
-
-const DOWNSTREAM_CLAUDE_MD = `# CLAUDE.md
-
-This workspace contains local, agent-readable game context.
-
-Start with \`manifest.yml\`, then read \`USAGE.md\`. Use the manifest paths to load the game, module, content, and image context needed for the current task.
-
-When content mentions \`@image_id\`, resolve the image through \`manifest.yml\` or the per-game \`image_catalog.yml\` when it exists.
-
-Do not assume missing nodes exist. If a referenced file is missing, report the missing path clearly instead of inventing context.
-`;
-
-const DOWNSTREAM_USAGE_MD = `# Game Context Workspace Usage
-
-This folder is generated by Game Context Manager for humans and agents.
-
-## Recommended Reading Order
-
-1. Read \`manifest.yml\`.
-2. Read the game node path listed under \`game.path\` when a game exists.
-3. Read relevant module files under \`modules\`.
-4. Read relevant content files under \`contents\`.
-5. Resolve screenshots and other images through \`images\` and any per-game \`image_catalog.yml\`.
-
-## File Roles
-
-- \`manifest.yml\`: machine-readable live directory.
-- \`AGENTS.md\`: generic instructions for Codex-style agents.
-- \`CLAUDE.md\`: generic instructions for Claude Code and compatible tools.
-- \`USAGE.md\`: general workflow for any reader.
-- \`games/\`: generated game context files and image assets.
-
-## Image References
-
-Node Markdown may refer to images with \`@image_id\`. Keep those references intact unless the user asks you to edit the node.
-`;
-
-const WORKSPACE_README_MD = `# Game Context Workspace
-
-This is a local game context workspace generated by Game Context Manager.
-
-The workspace is intentionally plain files: Markdown, YAML, and image assets. Agents can read it without opening the GUI.
-
-Start with \`manifest.yml\` and \`USAGE.md\`.
-`;

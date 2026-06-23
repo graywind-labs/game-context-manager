@@ -52,7 +52,15 @@ export function registerModuleIpc(sqliteService: SqliteService): void {
 
   ipcMain.handle(MODULE_DELETE_CHANNEL, (_event, input: DeleteModuleNodeInput): ModuleNodeState => {
     const workspace = requireWorkspace(sqliteService, input.workspaceId);
+    const currentUserId = requireCurrentUserId(workspace);
     const game = requireGame(sqliteService, input.workspaceId);
+    const module = sqliteService.getModuleNode(input.workspaceId, input.id);
+
+    if (!module) {
+      throw new Error(`Module node not found: ${input.id}`);
+    }
+
+    requireDeleteOwner(currentUserId, module.creatorId, 'Only the module node creator can delete this module node.');
     const childContentIds = sqliteService.getContentNodes(input.workspaceId, input.id).map((content) => content.id);
 
     sqliteService.deleteModuleNode(input);
@@ -143,4 +151,10 @@ function requireCurrentUserId(workspace: WorkspaceConfig): string {
   }
 
   return workspace.currentUserId;
+}
+
+function requireDeleteOwner(currentUserId: string, ownerId: string, message: string): void {
+  if (currentUserId !== ownerId) {
+    throw new Error(message);
+  }
 }

@@ -16,7 +16,7 @@ try {
   const firstService = initializeSqliteService({ databasePath, journalMode: 'DELETE' });
 
   assert.equal(firstService.schemaVersion, DATABASE_SCHEMA_VERSION);
-  assert.deepEqual(firstService.getAppliedMigrations(), [DATABASE_SCHEMA_VERSION]);
+  assert.deepEqual(firstService.getAppliedMigrations(), [1, 2, 3, 4, DATABASE_SCHEMA_VERSION]);
   assert.deepEqual(firstService.verifyRequiredTables().missingTables, []);
 
   const tableNames = new Set(firstService.getTableNames());
@@ -27,19 +27,22 @@ try {
   firstService.saveWorkspace({
     id: 'workspace_test',
     rootPath: tempDir,
-    contextPath: join(tempDir, 'game-context'),
+    contextPath: tempDir,
+    markerPath: join(tempDir, '.game-context-manager.yml'),
     schemaVersion: 1,
     createdAt: '2026-06-18T12:00:00.000Z',
     updatedAt: '2026-06-18T12:00:00.000Z'
   });
 
   const workspaceRow = firstService.database
-    .prepare('SELECT id, root_path, context_path FROM workspaces WHERE id = ?')
-    .get('workspace_test') as { id: string; root_path: string; context_path: string } | undefined;
+    .prepare('SELECT id, root_path, context_path, marker_path FROM workspaces WHERE id = ?')
+    .get('workspace_test') as { id: string; root_path: string; context_path: string; marker_path: string | null } | undefined;
 
   assert.equal(workspaceRow?.id, 'workspace_test');
   assert.equal(workspaceRow?.root_path, tempDir);
-  assert.equal(workspaceRow?.context_path, join(tempDir, 'game-context'));
+  assert.equal(workspaceRow?.context_path, tempDir);
+  assert.equal(workspaceRow?.marker_path, join(tempDir, '.game-context-manager.yml'));
+  assert.equal(firstService.getWorkspace('workspace_test')?.directoryIndexNeedsExport, false);
 
   const firstUserState = firstService.getUserState();
   assert.deepEqual(firstUserState.users, []);
@@ -52,15 +55,16 @@ try {
   const apiConfig = firstService.saveApiConfig({
     baseUrl: ' mock://local ',
     apiKey: ' sk-local-secret ',
-    modelName: ' mock-model ',
-    enabled: true
+    modelName: ' mock-model '
   });
 
   assert.equal(apiConfig.baseUrl, 'mock://local');
   assert.equal(apiConfig.apiKey, 'sk-local-secret');
   assert.equal(apiConfig.modelName, 'mock-model');
-  assert.equal(apiConfig.enabled, true);
   assert.equal(firstService.getApiConfig()?.apiKey, 'sk-local-secret');
+  assert.equal(firstService.getAppSettings().language, 'zh');
+  assert.equal(firstService.saveAppSettings({ language: 'en' }).language, 'en');
+  assert.equal(firstService.getAppSettings().language, 'en');
 
   const secondUser = firstService.createLocalUser({ displayName: 'Designer B' });
   const selectedUserState = firstService.getUserState();
@@ -75,11 +79,15 @@ try {
 
   assert.equal(updatedWorkspaceRow?.current_user_id, firstUser.id);
   assert.equal(firstService.getUserState('workspace_test').currentUser?.id, firstUser.id);
+  const loggedOutState = firstService.logoutCurrentUser();
+  assert.equal(loggedOutState.currentUser, undefined);
+  assert.equal(firstService.getUserState('workspace_test').currentUser, undefined);
+  firstService.selectCurrentUser(firstUser.id, 'workspace_test');
+  assert.equal(firstService.getUserState('workspace_test').currentUser?.id, firstUser.id);
 
   const createdGame = firstService.createGameNode(
     {
       workspaceId: 'workspace_test',
-      id: 'mission_frontline',
       gameName: '  使命防线  ',
       gameVersion: ' v0.3.2 ',
       projectStage: ProjectStage.Testing,
@@ -88,19 +96,21 @@ try {
     firstUser.id
   );
 
-  assert.equal(createdGame.id, 'mission_frontline');
+  assert.equal(createdGame.id, 'game_001');
   assert.equal(createdGame.gameName, '使命防线');
   assert.equal(createdGame.gameVersion, 'v0.3.2');
   assert.equal(createdGame.creatorId, firstUser.id);
   assert.equal(createdGame.lastEditorId, firstUser.id);
   assert.equal(firstService.getGameNode('workspace_test')?.id, createdGame.id);
+  assert.equal(firstService.getWorkspace('workspace_test')?.directoryIndexNeedsExport, true);
+  firstService.markWorkspaceDirectoryIndexExported('workspace_test');
+  assert.equal(firstService.getWorkspace('workspace_test')?.directoryIndexNeedsExport, false);
 
   assert.throws(
     () =>
       firstService.createGameNode(
         {
           workspaceId: 'workspace_test',
-          id: 'second_game',
           gameName: '第二个游戏',
           gameVersion: 'v1',
           projectStage: ProjectStage.Planning
@@ -114,7 +124,6 @@ try {
     'workspace_test',
     {
       workspaceId: 'workspace_test',
-      id: 'attempt_to_change_id',
       gameName: '使命防线 Plus',
       gameVersion: 'v0.3.3',
       projectStage: ProjectStage.Live,
@@ -129,18 +138,20 @@ try {
   assert.equal(editedGame.gameName, '使命防线 Plus');
   assert.equal(editedGame.gameVersion, 'v0.3.3');
   assert.equal(editedGame.mainFun, '持续开箱和战车成长。');
+  assert.equal(firstService.getWorkspace('workspace_test')?.directoryIndexNeedsExport, true);
 
   const gameWorkspaceRow = firstService.database
-    .prepare('SELECT active_game_id FROM workspaces WHERE id = ?')
-    .get('workspace_test') as { active_game_id: string | null } | undefined;
+    .prepare('SELECT active_game_id, active_game_folder_name FROM workspaces WHERE id = ?')
+    .get('workspace_test') as { active_game_id: string | null; active_game_folder_name: string | null } | undefined;
 
   assert.equal(gameWorkspaceRow?.active_game_id, createdGame.id);
+  assert.equal(gameWorkspaceRow?.active_game_folder_name, '使命防线游戏上下文');
 
   const image = firstService.createImageAsset('workspace_test', {
     id: 'img_main_screen_1234abcd',
     displayName: '主界面截图',
     originalFileName: '乱码文件名###.png',
-    relativePath: 'games/mission_frontline/assets/images/img_main_screen_1234abcd__main-screen.png',
+    relativePath: '使命防线游戏上下文/assets/images/img_main_screen_1234abcd__main-screen.png',
     fileType: 'png',
     gameId: createdGame.id,
     uploaderId: firstUser.id,
@@ -160,7 +171,6 @@ try {
   const createdModule = firstService.createModuleNode(
     {
       workspaceId: 'workspace_test',
-      id: 'gacha_workshop',
       moduleName: '  生产线/开箱  ',
       modulePositioning: '主界面开箱与生产线入口。',
       imageIds: [image.id]
@@ -168,7 +178,7 @@ try {
     firstUser.id
   );
 
-  assert.equal(createdModule.id, 'gacha_workshop');
+  assert.equal(createdModule.id, 'module_001');
   assert.equal(createdModule.gameId, createdGame.id);
   assert.equal(createdModule.gameVersion, editedGame.gameVersion);
   assert.equal(createdModule.moduleName, '生产线/开箱');
@@ -178,7 +188,6 @@ try {
   const secondModule = firstService.createModuleNode(
     {
       workspaceId: 'workspace_test',
-      id: 'shop',
       moduleName: '商店',
       imageIds: [image.id]
     },
@@ -220,7 +229,6 @@ try {
       firstService.createContentNode(
         {
           workspaceId: 'workspace_test',
-          id: 'invalid_content',
           moduleId: secondModule.id,
           title: '未关联图片引用',
           imageIds: [],
@@ -234,7 +242,6 @@ try {
   const createdContent = firstService.createContentNode(
     {
       workspaceId: 'workspace_test',
-      id: 'day1_first_gacha',
       moduleId: secondModule.id,
       title: '第一天首次进入商店',
       imageIds: [image.id],
@@ -281,7 +288,6 @@ try {
   const temporaryContent = firstService.createContentNode(
     {
       workspaceId: 'workspace_test',
-      id: 'temporary_content',
       moduleId: secondModule.id,
       title: '临时内容',
       imageIds: [image.id],
@@ -300,7 +306,6 @@ try {
   const cascadeModule = firstService.createModuleNode(
     {
       workspaceId: 'workspace_test',
-      id: 'battle',
       moduleName: '战斗',
       imageIds: [image.id]
     },
@@ -309,7 +314,6 @@ try {
   const cascadeContent = firstService.createContentNode(
     {
       workspaceId: 'workspace_test',
-      id: 'battle_day1',
       moduleId: cascadeModule.id,
       title: '战斗第一天',
       imageIds: [image.id],
@@ -333,7 +337,7 @@ try {
     id: 'img_deleted_5678efgh',
     displayName: '删除测试图',
     originalFileName: 'delete-me.png',
-    relativePath: 'games/mission_frontline/assets/images/img_deleted_5678efgh__delete-me.png',
+    relativePath: '使命防线游戏上下文/assets/images/img_deleted_5678efgh__delete-me.png',
     fileType: 'png',
     gameId: createdGame.id,
     uploaderId: firstUser.id,
@@ -375,18 +379,27 @@ try {
   firstService.close();
 
   const secondService = initializeSqliteService({ databasePath, journalMode: 'DELETE' });
-  assert.deepEqual(secondService.getAppliedMigrations(), [DATABASE_SCHEMA_VERSION]);
+  assert.deepEqual(secondService.getAppliedMigrations(), [1, 2, 3, 4, DATABASE_SCHEMA_VERSION]);
   assert.deepEqual(secondService.verifyRequiredTables().missingTables, []);
   assert.equal(secondService.getUserState('workspace_test').currentUser?.id, firstUser.id);
   assert.equal(secondService.getApiConfig()?.baseUrl, 'mock://local');
   assert.equal(secondService.getApiConfig()?.apiKey, 'sk-local-secret');
-  assert.equal(secondService.getApiConfig()?.enabled, true);
+  assert.equal(secondService.getAppSettings().language, 'en');
   assert.equal(secondService.getGameNode('workspace_test')?.id, createdGame.id);
   assert.equal(secondService.getImageAssets('workspace_test')[0]?.id, image.id);
   assert.equal(secondService.getModuleNodes('workspace_test')[0]?.id, secondModule.id);
   assert.deepEqual(secondService.getModuleNodes('workspace_test')[0]?.imageIds, [image.id]);
   assert.equal(secondService.getContentNodes('workspace_test', secondModule.id)[0]?.id, createdContent.id);
   assert.deepEqual(secondService.getContentNodes('workspace_test', secondModule.id)[0]?.imageIds, [image.id]);
+  assert.equal(secondService.getWorkspace('workspace_test')?.directoryIndexNeedsExport, true);
+  secondService.deleteGameNode({ workspaceId: 'workspace_test' });
+  assert.equal(secondService.getGameNode('workspace_test'), undefined);
+  assert.equal(secondService.getModuleNode('workspace_test', secondModule.id), undefined);
+  assert.equal(secondService.getContentNode('workspace_test', createdContent.id), undefined);
+  assert.equal(secondService.getImageAsset('workspace_test', image.id), undefined);
+  assert.deepEqual(secondService.getImageAssets('workspace_test'), []);
+  assert.equal(secondService.getWorkspace('workspace_test')?.activeGameId, undefined);
+  assert.equal(secondService.getWorkspace('workspace_test')?.directoryIndexNeedsExport, true);
   secondService.close();
 } finally {
   try {
