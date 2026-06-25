@@ -143,7 +143,7 @@ export function importWorkspaceFromDirectory(selectedDirectory: string, currentU
   }
 
   const markerGameFolderName = stringValue(marker.main_node_folder_name);
-  const gameMarkdownPath = findOptionalGameMarkdownPath(contextPath, manifest, markerGameFolderName);
+  const gameMarkdownPath = findOptionalGameMarkdownPath(contextPath, manifest, markerGameFolderName, warnings);
   const gameFolderName = gameMarkdownPath ? basename(dirname(gameMarkdownPath)) : undefined;
 
   if (gameFolderName && !existsSync(join(contextPath, gameFolderName, 'INDEX.md'))) {
@@ -155,11 +155,11 @@ export function importWorkspaceFromDirectory(selectedDirectory: string, currentU
   }
 
   const game = gameMarkdownPath ? parseGameNode(gameMarkdownPath, timestamp) : undefined;
-  const modulePaths = game && gameFolderName ? findNodeMarkdownPaths(contextPath, manifest, 'modules', gameFolderName) : [];
-  const contentPaths = game && gameFolderName ? findNodeMarkdownPaths(contextPath, manifest, 'contents', gameFolderName) : [];
+  const modulePaths = game && gameFolderName ? findNodeMarkdownPaths(contextPath, manifest, 'modules', gameFolderName, warnings) : [];
+  const contentPaths = game && gameFolderName ? findNodeMarkdownPaths(contextPath, manifest, 'contents', gameFolderName, warnings) : [];
   const modules = game ? modulePaths.map((filePath) => parseModuleNode(filePath, game, timestamp)) : [];
   const contents = game ? contentPaths.map((filePath) => parseContentNode(filePath, game, timestamp)) : [];
-  const images = game && gameFolderName ? parseImages(contextPath, gameFolderName, game, manifest, timestamp) : [];
+  const images = game && gameFolderName ? parseImages(contextPath, gameFolderName, game, manifest, timestamp, warnings) : [];
   const imageLinks = game ? buildImageLinks(game, modules, contents, images, manifest) : [];
   const users = collectImportedUsers(game, modules, contents, images, currentUserId, timestamp);
   const workspace: WorkspaceConfig = {
@@ -170,7 +170,7 @@ export function importWorkspaceFromDirectory(selectedDirectory: string, currentU
     activeGameId: game?.id,
     activeGameFolderName: gameFolderName,
     currentUserId: currentUserId ?? users[0]?.id,
-    directoryIndexNeedsExport: warnings.some((warning) => warning.includes('manifest.yml') || warning.includes('INDEX.md') || warning.includes('image_catalog.yml')),
+    directoryIndexNeedsExport: warnings.some(isDirectoryIndexWarning),
     schemaVersion: WORKSPACE_SCHEMA_VERSION,
     createdAt: timestamp,
     updatedAt: timestamp
@@ -353,17 +353,30 @@ function readYamlFile(filePath: string): Record<string, unknown> {
 function findGameMarkdownPath(
   contextPath: string,
   manifest: Record<string, unknown>,
-  markerGameFolderName?: string
+  markerGameFolderName: string | undefined,
+  warnings: string[]
 ): string {
   const manifestGame = isRecord(manifest.game) ? manifest.game : undefined;
   const manifestPath = stringValue(manifestGame?.path);
 
   if (manifestPath) {
-    return requireFile(contextPath, manifestPath);
+    const manifestGamePath = resolveExistingReferencedFile(contextPath, manifestPath);
+
+    if (manifestGamePath) {
+      return manifestGamePath;
+    }
+
+    warnings.push(`manifest.yml references missing game file: ${manifestPath}; scanned workspace instead.`);
   }
 
   if (markerGameFolderName) {
-    return requireFile(contextPath, `${markerGameFolderName}/game.md`);
+    const markerGamePath = resolveExistingReferencedFile(contextPath, `${markerGameFolderName}/game.md`);
+
+    if (markerGamePath) {
+      return markerGamePath;
+    }
+
+    warnings.push(`Workspace marker references missing game file: ${markerGameFolderName}/game.md; scanned workspace instead.`);
   }
 
   const gameMarkdownPaths = listDirectories(contextPath)
@@ -384,10 +397,11 @@ function findGameMarkdownPath(
 function findOptionalGameMarkdownPath(
   contextPath: string,
   manifest: Record<string, unknown>,
-  markerGameFolderName?: string
+  markerGameFolderName: string | undefined,
+  warnings: string[]
 ): string | undefined {
   try {
-    return findGameMarkdownPath(contextPath, manifest, markerGameFolderName);
+    return findGameMarkdownPath(contextPath, manifest, markerGameFolderName, warnings);
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('No game.md found under')) {
       return undefined;
@@ -401,31 +415,43 @@ function findNodeMarkdownPaths(
   contextPath: string,
   manifest: Record<string, unknown>,
   key: 'modules' | 'contents',
-  gameFolderName: string
+  gameFolderName: string,
+  warnings: string[]
 ): string[] {
   const manifestEntries = isRecord(manifest[key]) ? Object.values(manifest[key]) : [];
   const manifestPaths = manifestEntries
     .map((entry) => stringValue((entry as ManifestModuleEntry | ManifestContentEntry).path))
     .filter((filePath): filePath is string => Boolean(filePath));
+  const nodePaths = new Set<string>();
 
-  if (manifestPaths.length > 0) {
-    return manifestPaths.map((filePath) => requireFile(contextPath, filePath));
+  for (const manifestPath of manifestPaths) {
+    const filePath = resolveExistingReferencedFile(contextPath, manifestPath);
+
+    if (filePath) {
+      nodePaths.add(filePath);
+    } else {
+      warnings.push(`manifest.yml references missing ${key.slice(0, -1)} file: ${manifestPath}; scanned Markdown files instead.`);
+    }
   }
 
   const modulesDirectoryPath = join(contextPath, gameFolderName, 'modules');
 
   if (!existsSync(modulesDirectoryPath)) {
-    return [];
+    return [...nodePaths].sort((left, right) => left.localeCompare(right));
   }
 
   if (key === 'modules') {
-    return listDirectories(modulesDirectoryPath)
+    for (const filePath of listDirectories(modulesDirectoryPath)
       .map((moduleDirectory) => join(moduleDirectory, 'module.md'))
       .filter((filePath) => existsSync(filePath))
-      .sort((left, right) => left.localeCompare(right));
+      .sort((left, right) => left.localeCompare(right))) {
+      nodePaths.add(filePath);
+    }
+
+    return [...nodePaths].sort((left, right) => left.localeCompare(right));
   }
 
-  return listDirectories(modulesDirectoryPath)
+  for (const filePath of listDirectories(modulesDirectoryPath)
     .flatMap((moduleDirectory) => {
       const contentsDirectoryPath = join(moduleDirectory, 'contents');
 
@@ -437,14 +463,18 @@ function findNodeMarkdownPaths(
         .filter((fileName) => fileName.endsWith('.md'))
         .map((fileName) => join(contentsDirectoryPath, fileName));
     })
-    .sort((left, right) => left.localeCompare(right));
+    .sort((left, right) => left.localeCompare(right))) {
+    nodePaths.add(filePath);
+  }
+
+  return [...nodePaths].sort((left, right) => left.localeCompare(right));
 }
 
-function requireFile(contextPath: string, relativePath: string): string {
+function resolveExistingReferencedFile(contextPath: string, relativePath: string): string | undefined {
   const filePath = join(contextPath, relativePath);
 
   if (!existsSync(filePath)) {
-    throw new Error(`Referenced file is missing: ${filePath}`);
+    return undefined;
   }
 
   return filePath;
@@ -557,7 +587,8 @@ function parseImages(
   gameFolderName: string,
   game: GameNode,
   manifest: Record<string, unknown>,
-  fallbackTimestamp: string
+  fallbackTimestamp: string,
+  warnings: string[]
 ): ImageAsset[] {
   const catalogPath = join(contextPath, gameFolderName, 'image_catalog.yml');
   const catalog = readYamlFile(catalogPath);
@@ -566,7 +597,7 @@ function parseImages(
   const imageFiles = findImageFiles(contextPath, gameFolderName);
   const imageIds = new Set([...Object.keys(catalogImages), ...Object.keys(manifestImages), ...imageFiles.keys()]);
 
-  return [...imageIds].sort((left, right) => left.localeCompare(right)).map((imageId) => {
+  return [...imageIds].sort((left, right) => left.localeCompare(right)).flatMap((imageId) => {
     const catalogEntry = isRecord(catalogImages[imageId]) ? catalogImages[imageId] as ImageCatalogEntry : {};
     const manifestEntry = isRecord(manifestImages[imageId]) ? manifestImages[imageId] as ManifestImageEntry : {};
     const fallbackImage = imageFiles.get(imageId);
@@ -574,6 +605,11 @@ function parseImages(
 
     if (!relativePath) {
       throw new Error(`Image ${imageId} is missing path in manifest or image_catalog.yml.`);
+    }
+
+    if (!existsSync(join(contextPath, relativePath))) {
+      warnings.push(`image_catalog.yml or manifest.yml references missing image file: ${relativePath}; skipped missing image.`);
+      return [];
     }
 
     return {
@@ -634,6 +670,11 @@ function buildImageLinks(
   manifest: Record<string, unknown>
 ): NodeImageLink[] {
   const imageIds = new Set(images.map((image) => image.id));
+  const nodeKeys = new Set<string>([
+    `${NodeType.Game}:${game.id}`,
+    ...modules.map((module) => `${NodeType.Module}:${module.id}`),
+    ...contents.map((content) => `${NodeType.Content}:${content.id}`)
+  ]);
   const links = new Map<string, NodeImageLink>();
 
   if (game.coverImageId && imageIds.has(game.coverImageId)) {
@@ -665,7 +706,7 @@ function buildImageLinks(
     for (const linkedNode of stringArrayValue((entry as ManifestImageEntry).linked_nodes)) {
       const [nodeType, nodeId] = linkedNode.split(':');
 
-      if (isNodeType(nodeType) && nodeId) {
+      if (isNodeType(nodeType) && nodeId && nodeKeys.has(`${nodeType}:${nodeId}`)) {
         addImageLink(links, nodeType, nodeId, imageId);
       }
     }
@@ -852,6 +893,10 @@ function fileTypeFromPath(filePath: string): string {
 
 function isNodeType(value: string): value is NodeType {
   return value === NodeType.Game || value === NodeType.Module || value === NodeType.Content;
+}
+
+function isDirectoryIndexWarning(warning: string): boolean {
+  return warning.includes('manifest.yml') || warning.includes('INDEX.md') || warning.includes('image_catalog.yml');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

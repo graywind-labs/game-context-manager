@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { parse, stringify } from 'yaml';
-import { createGameFolderName } from './workspaceService.js';
+import { WORKSPACE_MARKER_FILE_NAME, createGameFolderName } from './workspaceService.js';
 import {
   NodeType,
   PROJECT_STAGE_LABELS,
@@ -252,6 +252,7 @@ export function deleteGameNodeFiles(options: DeleteGameNodeFilesOptions): void {
   const paths = getGameNodeExportPaths(options.workspace, options.game);
 
   removeDirectoryInsideWorkspace(options.workspace, paths.gameDirectoryPath);
+  removeFileInsideWorkspace(options.workspace, join(options.workspace.contextPath, WORKSPACE_MARKER_FILE_NAME));
 }
 
 export function deleteContentNodeFiles(options: DeleteContentNodeFilesOptions): void {
@@ -299,6 +300,20 @@ function removeDirectoryInsideWorkspace(workspace: WorkspaceConfig, directoryPat
 
   if (existsSync(targetPath)) {
     rmSync(targetPath, { recursive: true, force: true });
+  }
+}
+
+function removeFileInsideWorkspace(workspace: WorkspaceConfig, filePath: string): void {
+  const workspaceRoot = resolve(workspace.contextPath);
+  const targetPath = resolve(filePath);
+  const relativePath = relative(workspaceRoot, targetPath);
+
+  if (relativePath === '' || relativePath.startsWith('..') || isAbsolute(relativePath)) {
+    throw new Error('Refusing to delete a file outside the current workspace.');
+  }
+
+  if (existsSync(targetPath)) {
+    unlinkSync(targetPath);
   }
 }
 

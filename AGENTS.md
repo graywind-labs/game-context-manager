@@ -20,9 +20,9 @@
 
 - `Markdown + YAML frontmatter`
 - `manifest.yml`
-- 静态通用 Agent 使用说明（当前为手动导出的 `AGENTS.md` / `CLAUDE.md`）
-- 手动生成的单游戏目录索引 `INDEX.md`
-- 手动生成的图片目录 `image_catalog.yml`
+- 静态通用 Agent 使用说明（当前为创建主节点时自动导出、也可手动导出的 `AGENTS.md` / `CLAUDE.md`）
+- 保存或删除后自动生成的单游戏目录索引 `INDEX.md`
+- 保存或删除后自动生成的图片目录 `image_catalog.yml`
 - 被引用的图片资源
 
 GUI 是面向人的管理层；导出的文件是面向 Agent 的上下文源。
@@ -66,7 +66,7 @@ GUI 是面向人的管理层；导出的文件是面向 Agent 的上下文源。
 - 生成给 Agent 使用的文件必须在不打开 GUI 的情况下也可阅读、可理解、可使用。
 - MVP 阶段不要实现 RAG、MCP、云同步、公共多人工作区、数据分析、生图、自动运营建议或自动玩游戏，除非后续任务明确要求。
 - 节点 ID 和图片 ID 必须由程序自动分配，用户创建节点时不得手动填写 ID。
-- `manifest.yml`、`INDEX.md`、`image_catalog.yml` 只在用户主动执行“导出当前目录”时生成或更新，不再随节点变化实时自动重写。
+- `manifest.yml`、`INDEX.md`、`image_catalog.yml` 在保存或删除任一节点、文件、图片后自动生成或更新；用户仍可主动执行“导出当前目录”来重新生成。
 
 ## 5. 目标技术栈
 
@@ -121,7 +121,7 @@ Codex 应逐步把项目演进为以下结构：
       ipc/
         apiIpc.ts                   # API 配置保存、读取和连接测试相关 IPC
         contentIpc.ts               # 三级内容节点创建/编辑与 @ 图片引用校验相关 IPC
-        exportIpc.ts                # AGENTS/CLAUDE 与目录索引手动导出相关 IPC
+        exportIpc.ts                # AGENTS/CLAUDE 手动重导出与目录索引导出相关 IPC
         gameIpc.ts                  # 游戏主节点创建/编辑相关 IPC
         imageIpc.ts                 # 图片上传、重命名、图库读取、拖拽/粘贴相关 IPC
         moduleIpc.ts                # 模块节点创建/编辑/删除与图片关联相关 IPC
@@ -197,14 +197,14 @@ Codex 应逐步把项目演进为以下结构：
 ```text
 <selected-folder>/
   .game-context-manager.yml          # 工作区唯一标记，导入时必须识别且只能有一个
-  AGENTS.md                          # 手动导出的 Codex/通用 Agent 说明
-  CLAUDE.md                          # 手动导出的 Claude Code / WorkBuddy 说明
-  manifest.yml                       # 手动生成/更新的机器可读目录
+  AGENTS.md                          # 创建主节点时自动导出，也可手动重导出
+  CLAUDE.md                          # 创建主节点时自动导出，也可手动重导出
+  manifest.yml                       # 保存或删除后自动生成/更新的机器可读目录
 
   <game_folder_name>/                 # 以“主节点名称 + 游戏上下文”清洗后生成，例如：使命防线游戏上下文
     game.md                           # 一级游戏主节点
-    INDEX.md                          # 手动生成/更新的单游戏索引
-    image_catalog.yml                 # 手动生成/更新的图片元数据目录
+    INDEX.md                          # 保存或删除后自动生成/更新的单游戏索引
+    image_catalog.yml                 # 保存或删除后自动生成/更新的图片元数据目录
     assets/
       images/
         <image_id>__<display_name>.<ext>
@@ -215,7 +215,7 @@ Codex 应逐步把项目演进为以下结构：
           <content_id>.md             # 三级内容/阶段/体验节点
 ```
 
-下游 `AGENTS.md`、`CLAUDE.md` 是静态工作流文档。除非模板被主动更新或用户点击导出，否则它们不应因为节点增删改而每次重写。`manifest.yml`、`INDEX.md`、`image_catalog.yml` 也不应实时自动重写，只能在用户点击“导出当前目录”后生成或更新。
+下游 `AGENTS.md`、`CLAUDE.md` 是静态工作流文档。创建主节点时会自动导出一次；除非模板被主动更新、用户点击导出或后续任务明确要求，否则它们不应因为普通节点增删改而每次重写。`manifest.yml`、`INDEX.md`、`image_catalog.yml` 会在保存或删除节点、文件、图片后自动生成或更新，也可在用户点击“导出当前目录”后重新生成。
 
 每次创建游戏主节点都必须重新选择工作区根目录。所选文件夹就是 Agent 运行根目录，`AGENTS.md`、`CLAUDE.md` 和 `manifest.yml` 与主节点文件夹同级；主节点游戏上下文文件夹是该根目录下的子文件夹。
 
@@ -265,7 +265,7 @@ Codex 应逐步把项目演进为以下结构：
 ## 11. 安全与数据规则
 
 - 不得在没有明确操作和确认的情况下删除用户文件。
-- 删除节点时，应删除对应 MD 文件并清理数据库记录和图片关联；目录索引应标记为需要手动重新导出。
+- 删除节点时，应删除对应 MD 文件并清理数据库记录和图片关联；随后应自动导出当前目录索引。
 - 删除图片时，应从相关节点取消关联；不得删除被多个节点共享的图片，除非用户明确删除该图片资源。
 - 图片文件名必须根据用户提供的图片名进行清洗和重写。
 - 原始图片文件名必须保存在元数据中。

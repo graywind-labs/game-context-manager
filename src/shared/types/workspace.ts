@@ -95,4 +95,5 @@ export interface DeleteKnownWorkspaceItemInput {
 
 export interface DeleteKnownWorkspaceItemResult {
   deletedPath: string;
+  exportedPaths?: string[];
 }

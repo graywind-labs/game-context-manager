@@ -11,7 +11,7 @@
 - 后一任务必须建立在前一任务基础上，不要跳步。
 - 如果任务无法完成，保持 `TODO`，在 `验收结果` 和 `CURRENT_STATE.md` 记录阻塞原因。
 
-说明：T001-T020 是旧版 MVP 的历史验收记录；从 T021 开始，当前目标以新的两栏 UI、唯一标记工作区、自动 ID、设置内语言/API、手动导出索引等 `DESIGN.md` 规则为准。旧任务中的三栏布局、实时目录更新、主界面语言/API 入口等描述不再作为后续实现目标。
+说明：T001-T020 是旧版 MVP 的历史验收记录；从 T021 开始，当前目标以新的两栏 UI、唯一标记工作区、自动 ID、设置内语言/API、自动目录索引导出等 `DESIGN.md` 规则为准。旧任务中的三栏布局、旧式实时目录更新、主界面语言/API 入口等描述不再作为后续实现目标。
 
 ---
 
@@ -1083,6 +1083,7 @@
 - `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
 - `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
 - `corepack pnpm build` 已通过。
+- `git diff --check` 已通过；仅输出当前工作区 LF/CRLF 转换提示。
 
 ---
 
@@ -1443,6 +1444,145 @@
 
 ---
 
+## T034 — 刷新工作区时忽略过期索引中的缺失节点
+
+**状态**：DONE
+
+### 要做什么
+
+根据用户反馈，修复右上角刷新工作区时，因为旧 `manifest.yml` / `image_catalog.yml` 仍引用已删除模块文件而导致刷新失败的问题。
+
+需要包括：
+
+- 刷新或重启恢复工作区时，如果手动导出的索引文件还引用已经不存在的模块、内容或图片文件，不应抛出硬错误。
+- 缺失引用应记录为 warning，并把目录索引标记为需要重新导出。
+- 刷新结果应以磁盘上实际存在的 Markdown 和图片文件为准。
+- 过期 `manifest.yml` 中的旧图片关联不应重新关联到已经不存在的模块或内容节点。
+
+### 暂不做什么
+
+- 不自动重写 `manifest.yml`、`INDEX.md` 或 `image_catalog.yml`。
+- 不恢复已被用户从文件夹中删除的节点文件。
+- 不改变节点删除权限或导出文件结构。
+
+### 验收标准
+
+- 手动删除模块文件夹但不重新导出目录索引后，刷新工作区不再报 `Referenced file is missing`。
+- 刷新后的模块和内容列表以现存文件为准，已删除模块不再显示。
+- 目录索引被标记为需要重新导出。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过。
+- `corepack pnpm build` 通过。
+- `corepack pnpm lint` 若仍未配置，明确记录。
+
+### 验收结果
+
+已完成。
+
+- `workspaceService` 现在会把 `manifest.yml` 中缺失的游戏、模块、内容路径降级为 warning，并回退扫描工作区内实际存在的 Markdown 文件。
+- 图片导入会跳过 `manifest.yml` 或 `image_catalog.yml` 中仍记录但磁盘上已不存在的图片文件，并记录 warning。
+- 根据导入到的真实游戏、模块和内容节点过滤 `manifest.yml` 中的图片 `linked_nodes`，避免旧索引把已删除节点的图片关联重新写回数据库。
+- 新增单元测试覆盖“导出目录索引后手动删除模块文件夹，再导入/刷新工作区”的场景；刷新结果为 0 个模块、0 个内容、图片仍保留，且目录索引需要重新导出。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+
+---
+
+## T035 — 删除主节点时同步删除工作区唯一标记
+
+**状态**：DONE
+
+### 要做什么
+
+根据用户反馈，删除游戏主节点时，除了删除主节点游戏上下文文件夹，还需要同步删除工作区根目录的 `.game-context-manager.yml`。
+
+需要包括：
+
+- 删除游戏主节点时删除当前工作区根目录下的 `.game-context-manager.yml`。
+- 删除 marker 时必须校验路径位于当前工作区内，不允许删除任意外部文件。
+- 应用重启恢复最近工作区时，如果最近工作区的 marker 已不存在，应跳过恢复，回到未打开工作区状态。
+- 更新测试和文档记录。
+
+### 暂不做什么
+
+- 不删除用户手动导出的 `AGENTS.md`、`CLAUDE.md` 或 `manifest.yml`。
+- 不实现回收站或撤销。
+- 不改变创建主节点时必须重新选择工作区根目录的流程。
+
+### 验收标准
+
+- 删除主节点后，`<workspace>/.game-context-manager.yml` 不再存在。
+- 删除主节点后，`<game_folder_name>/` 不再存在。
+- 重启恢复最近工作区时，若 marker 已不存在，不抛错并停留在未打开工作区状态。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过。
+- `corepack pnpm build` 通过。
+- `corepack pnpm lint` 若仍未配置，明确记录。
+
+### 验收结果
+
+已完成。
+
+- `deleteGameNodeFiles` 删除主节点游戏上下文文件夹后，会同步删除当前工作区根目录的 `.game-context-manager.yml`。
+- 新增工作区内文件删除校验，删除 marker 前会确认目标路径位于当前工作区内部。
+- 最近工作区恢复时，如果记录中的 marker 已不存在，会直接返回未恢复状态，避免下次启动因缺少 `.game-context-manager.yml` 抛错。
+- `fileExportService.test.ts` 已断言删除主节点文件后游戏目录、图片文件和 `.game-context-manager.yml` 都不存在。
+- `DESIGN.md` 已更新删除游戏主节点规则，说明当前实现会一并删除工作区唯一标记。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+
+---
+
+## T036 — 导出完成提示去重
+
+**状态**：DONE
+
+### 要做什么
+
+根据用户反馈，左下角两个导出按钮执行完成时，界面左下角和右下角会同时显示导出完成提示，造成冗余。需要只保留左下角导出区提示，去掉右下角全局导出完成/失败提示。
+
+需要包括：
+
+- 导出 AGENTS/CLAUDE 完成或失败时，只显示左下角导出区提示。
+- 导出当前目录完成或失败时，只显示左下角导出区提示。
+- 保存、刷新、删除等其它非导出流程的右下角全局提示不受影响。
+- 左下角导出提示仍约 2 秒后自动消失。
+
+### 暂不做什么
+
+- 不改导出文件结构。
+- 不改导出 IPC 或文件生成服务。
+- 不改其它操作的全局提示行为。
+
+### 验收标准
+
+- 点击“导出 AGENTS/CLAUDE”成功后，只出现左下角“导出完成”提示。
+- 点击“导出当前目录”成功后，只出现左下角“导出完成”提示。
+- 导出失败时，只出现左下角“导出失败”提示和错误详情。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过。
+- `corepack pnpm build` 通过。
+- `corepack pnpm lint` 若仍未配置，明确记录。
+
+### 验收结果
+
+已完成。
+
+- `App.tsx` 中导出完成收尾逻辑已改为只设置左下角 `exportStatus`，不再调用右下角全局 `showTransientNotice`。
+- 导出成功和失败仍会在左下角导出区显示约 2 秒；失败详情继续显示在左下角导出失败提示中。
+- 保存、刷新、删除文件等其它流程仍保留原有右下角全局提示。
+- `DESIGN.md` 已同步说明导出成功或失败提示只在左下角导出区显示。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+
+---
+
 ## T032 — AGENTS 与 CLAUDE 指令完整度对齐
 
 **状态**：DONE
@@ -1663,6 +1803,59 @@
 - `fileExportService.test.ts` 已覆盖新 Agent 模板关键规则、字段地图、manifest `field_schema` 和图片 `linked_node_files`。
 - `sampleWorkspace.test.ts` 已覆盖示例工作区的新 `field_schema`、`task_context_entries`、`linked_node_files` 和索引字段地图。
 - `DESIGN.md` 已补充下游 Agent 指令、字段 schema 和图片反查字段的设计说明。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。
+- `git diff --check` 已通过；仅输出当前工作区 LF/CRLF 转换提示。
+
+---
+
+## T037 — Ctrl+S 保存与自动目录导出
+
+**状态**：DONE
+
+### 要做什么
+
+根据用户明确指定，调整节点保存与目录导出工作流：
+
+- 在任一游戏、模块、内容节点详情页中，`Ctrl+S` 视同点击保存按钮。
+- 未做出改动时，`Ctrl+S` 无反应。
+- 保存按钮可用且有改动时，`Ctrl+S` 完成保存。
+- 每次保存或删除任一节点、文件、图片后，自动执行一次目录导出。
+- 创建主节点时，自动执行一次 `AGENTS.md` / `CLAUDE.md` 导出。
+- 将上述规则同步到 `DESIGN.md` 等相关文档。
+
+### 暂不做什么
+
+- 不新增可见快捷键说明入口。
+- 不改变 AI 预览确认规则。
+- 不改变导出文件的机器字段结构。
+
+### 验收标准
+
+- 节点详情中无改动时按 `Ctrl+S` 不触发保存。
+- 节点详情中有改动时按 `Ctrl+S` 触发与保存按钮相同的保存流程。
+- 游戏、模块、内容节点创建/保存后会自动更新 `manifest.yml`、`INDEX.md`、`image_catalog.yml`。
+- 模块、内容、图片和已知导出文件删除后会自动更新目录索引。
+- 创建游戏主节点后会自动生成或更新 `AGENTS.md` / `CLAUDE.md`。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过。
+- `corepack pnpm build` 通过。
+- `corepack pnpm lint` 若仍未配置，明确记录。
+
+### 验收结果
+
+已完成。
+
+- `App.tsx` 已增加节点详情页 `Ctrl+S` 监听：只在游戏、模块、内容详情中拦截保存快捷键；无改动或保存按钮不可用时不提交；有改动时调用对应保存流程。
+- 新增 `exportWorkflowService.ts`，统一封装按当前 SQLite 状态导出目录索引和 Agent 文件的工作流。
+- 游戏主节点创建成功后会自动导出 `AGENTS.md` / `CLAUDE.md`，并自动导出 `manifest.yml`、`INDEX.md`、`image_catalog.yml`；游戏主节点保存后会自动导出目录索引。
+- 模块、内容、图片上传/删除和已知导出文件删除成功后，都会自动导出当前目录索引并清除 `directoryIndexNeedsExport` 状态。
+- IPC 返回值已补充可选 `exportedPaths`，前端会把自动导出的文件路径合并进左侧文件树。
+- 中文/英文界面文案已移除“需手动导出目录索引”的过期提示，改为自动同步目录索引。
+- `DESIGN.md`、`AGENTS.md`、`README.md` 已同步新的 `Ctrl+S` 和自动导出规则。
+- 新增 `tests/unit/exportWorkflowService.test.ts`，覆盖自动导出 helper 生成 Agent 文件、目录索引，并把工作区目录索引状态标记为已导出。
 - `corepack pnpm typecheck` 已通过。
 - `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
 - `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。

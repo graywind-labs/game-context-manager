@@ -10,7 +10,7 @@
     "dev": "node scripts/dev.cjs",
     "start": "electron .",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "test": "tsc --noEmit -p tsconfig.test.json && tsx tests/unit/sqliteService.test.ts && tsx tests/unit/workspaceService.test.ts && tsx tests/unit/fileExportService.test.ts && tsx tests/unit/aiProviderService.test.ts && tsx tests/unit/sampleWorkspace.test.ts",
+    "test": "tsc --noEmit -p tsconfig.test.json && tsx tests/unit/sqliteService.test.ts && tsx tests/unit/workspaceService.test.ts && tsx tests/unit/fileExportService.test.ts && tsx tests/unit/exportWorkflowService.test.ts && tsx tests/unit/aiProviderService.test.ts && tsx tests/unit/sampleWorkspace.test.ts",
     "build": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && electron-vite build"
   },
   "dependencies": {

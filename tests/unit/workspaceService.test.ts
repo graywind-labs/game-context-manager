@@ -216,6 +216,36 @@ try {
     sqliteService.close();
   }
 
+  rmSync(join(tempDir, '导入测试游戏游戏上下文', 'modules', module.id), { recursive: true, force: true });
+
+  const staleIndexImportedWorkspace = importWorkspaceFromDirectory(tempDir, users[0].id, new Date('2026-06-18T13:05:30.000Z'));
+
+  assert.equal(staleIndexImportedWorkspace.summary.imported.gameCount, 1);
+  assert.equal(staleIndexImportedWorkspace.summary.imported.moduleCount, 0);
+  assert.equal(staleIndexImportedWorkspace.summary.imported.contentCount, 0);
+  assert.equal(staleIndexImportedWorkspace.summary.imported.imageCount, 1);
+  assert.equal(staleIndexImportedWorkspace.snapshot.workspace.directoryIndexNeedsExport, true);
+  assert.deepEqual(staleIndexImportedWorkspace.snapshot.imageLinks, []);
+  assert.equal(
+    staleIndexImportedWorkspace.summary.warnings.some((warning) => warning.includes('manifest.yml references missing module file')),
+    true
+  );
+  assert.equal(
+    staleIndexImportedWorkspace.summary.warnings.some((warning) => warning.includes('manifest.yml references missing content file')),
+    true
+  );
+
+  exportGameContextFiles({
+    workspace: exportWorkspace,
+    game,
+    modules: [module],
+    contents: [content],
+    users,
+    images: [image],
+    imageLinks,
+    now: new Date('2026-06-18T13:05:45.000Z')
+  });
+
   unlinkSync(join(tempDir, 'manifest.yml'));
   unlinkSync(join(tempDir, '导入测试游戏游戏上下文', 'INDEX.md'));
   unlinkSync(join(tempDir, '导入测试游戏游戏上下文', 'image_catalog.yml'));

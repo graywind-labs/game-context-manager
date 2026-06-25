@@ -37,4 +37,5 @@ export interface ImageAssetView extends ImageAsset {
 export interface ImageAssetState {
   images: ImageAssetView[];
   canceled?: boolean;
+  exportedPaths?: string[];
 }

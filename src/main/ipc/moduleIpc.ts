@@ -4,6 +4,7 @@ import {
   exportModuleNodeFiles,
   readModuleMarkdownPreview
 } from '../services/fileExportService.js';
+import { exportDirectoryIndexForWorkspace } from '../services/exportWorkflowService.js';
 import type { SqliteService } from '../services/sqliteService.js';
 import type {
   CreateModuleNodeInput,
@@ -35,8 +36,12 @@ export function registerModuleIpc(sqliteService: SqliteService): void {
     const module = sqliteService.createModuleNode(input, currentUserId);
 
     exportAllModuleFiles(sqliteService, workspace, game, module);
+    const exportedPaths = exportDirectoryIndexForWorkspace(sqliteService, input.workspaceId);
 
-    return getModuleState(sqliteService, input.workspaceId, module.id);
+    return {
+      ...getModuleState(sqliteService, input.workspaceId, module.id),
+      exportedPaths
+    };
   });
 
   ipcMain.handle(MODULE_UPDATE_CHANNEL, (_event, input: UpdateModuleNodeInput): ModuleNodeState => {
@@ -46,8 +51,12 @@ export function registerModuleIpc(sqliteService: SqliteService): void {
     const module = sqliteService.updateModuleNode(input, currentUserId);
 
     exportAllModuleFiles(sqliteService, workspace, game, module);
+    const exportedPaths = exportDirectoryIndexForWorkspace(sqliteService, input.workspaceId);
 
-    return getModuleState(sqliteService, input.workspaceId, module.id);
+    return {
+      ...getModuleState(sqliteService, input.workspaceId, module.id),
+      exportedPaths
+    };
   });
 
   ipcMain.handle(MODULE_DELETE_CHANNEL, (_event, input: DeleteModuleNodeInput): ModuleNodeState => {
@@ -75,8 +84,12 @@ export function registerModuleIpc(sqliteService: SqliteService): void {
       images: sqliteService.getImageAssets(input.workspaceId),
       imageLinks: sqliteService.getNodeImageLinks(input.workspaceId)
     });
+    const exportedPaths = exportDirectoryIndexForWorkspace(sqliteService, input.workspaceId);
 
-    return getModuleState(sqliteService, input.workspaceId);
+    return {
+      ...getModuleState(sqliteService, input.workspaceId),
+      exportedPaths
+    };
   });
 }
 

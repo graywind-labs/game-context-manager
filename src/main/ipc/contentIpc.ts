@@ -4,6 +4,7 @@ import {
   exportContentNodeFiles,
   readContentMarkdownPreview
 } from '../services/fileExportService.js';
+import { exportDirectoryIndexForWorkspace } from '../services/exportWorkflowService.js';
 import type { SqliteService } from '../services/sqliteService.js';
 import type {
   ContentNode,
@@ -37,8 +38,12 @@ export function registerContentIpc(sqliteService: SqliteService): void {
     const content = sqliteService.createContentNode(input, currentUserId);
 
     exportAllContentFiles(sqliteService, workspace, game, content);
+    const exportedPaths = exportDirectoryIndexForWorkspace(sqliteService, input.workspaceId);
 
-    return getContentState(sqliteService, input.workspaceId, content.id, content.moduleId);
+    return {
+      ...getContentState(sqliteService, input.workspaceId, content.id, content.moduleId),
+      exportedPaths
+    };
   });
 
   ipcMain.handle(CONTENT_UPDATE_CHANNEL, (_event, input: UpdateContentNodeInput): ContentNodeState => {
@@ -48,8 +53,12 @@ export function registerContentIpc(sqliteService: SqliteService): void {
     const content = sqliteService.updateContentNode(input, currentUserId);
 
     exportAllContentFiles(sqliteService, workspace, game, content);
+    const exportedPaths = exportDirectoryIndexForWorkspace(sqliteService, input.workspaceId);
 
-    return getContentState(sqliteService, input.workspaceId, content.id, content.moduleId);
+    return {
+      ...getContentState(sqliteService, input.workspaceId, content.id, content.moduleId),
+      exportedPaths
+    };
   });
 
   ipcMain.handle(CONTENT_DELETE_CHANNEL, (_event, input: DeleteContentNodeInput): ContentNodeState => {
@@ -75,8 +84,12 @@ export function registerContentIpc(sqliteService: SqliteService): void {
       images: sqliteService.getImageAssets(input.workspaceId),
       imageLinks: sqliteService.getNodeImageLinks(input.workspaceId)
     });
+    const exportedPaths = exportDirectoryIndexForWorkspace(sqliteService, input.workspaceId);
 
-    return getContentState(sqliteService, input.workspaceId, undefined, content.moduleId);
+    return {
+      ...getContentState(sqliteService, input.workspaceId, undefined, content.moduleId),
+      exportedPaths
+    };
   });
 }
 

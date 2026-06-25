@@ -398,12 +398,14 @@ try {
     imageLinks
   });
   writeFileSync(imagePath, 'fake image after game delete');
+  assert.equal(existsSync(workspace.markerPath ?? ''), true);
   deleteGameNodeFiles({
     workspace,
     game
   });
   assert.equal(existsSync(gameDirectory), false);
   assert.equal(existsSync(imagePath), false);
+  assert.equal(existsSync(workspace.markerPath ?? ''), false);
   exportGameNodeFiles({
     workspace,
     game,

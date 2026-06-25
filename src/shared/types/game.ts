@@ -29,4 +29,5 @@ export interface DeleteGameNodeInput {
 export interface GameNodeState {
   game?: GameNode;
   markdownPreview?: string;
+  exportedPaths?: string[];
 }

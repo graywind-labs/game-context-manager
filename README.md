@@ -2,7 +2,7 @@
 
 Game Context Manager（游戏上下文管理器）是一个本地优先的桌面 GUI 软件，用来按节点管理给人类和 Agent 双方阅读的游戏上下文，并在节点详情中提供 AI 辅助增加、修改、润色和汇总能力。
 
-当前仓库已完成 T030，本轮两栏 UI、唯一标记工作区、手动导出索引、节点详情 AI 弹窗、删除确认和示例工作区迁移已经落地。后续开发仍以 `DESIGN.md` 和 `TASK.md` 为准。
+当前仓库已完成两栏 UI、唯一标记工作区、自动目录索引导出、节点详情 AI 弹窗、删除确认和示例工作区迁移。后续开发仍以 `DESIGN.md` 和 `TASK.md` 为准。
 
 ## 目标产品形态
 
@@ -20,11 +20,12 @@ Game Context Manager（游戏上下文管理器）是一个本地优先的桌面
 - 节点 ID 和图片 ID 由程序自动分配，用户不手动填写。
 - 选中一个节点时，右侧只显示该节点详情。
 - 保存按钮只在内容被修改后启用。
+- 在节点详情中按 `Ctrl+S` 等同点击保存；没有修改时无反应。
 - 图片库在左侧树中与模块节点同级，支持上传、拖拽、粘贴和详情查看。
 - API、语言、退出账号只在设置里管理。
 - 不再提供“启用 AI 辅助”复选框；AI 默认可用，但 API 未配置或连接失败时提示不可用。
-- `AGENTS.md` / `CLAUDE.md` 由用户主动导出。
-- `manifest.yml`、`INDEX.md`、`image_catalog.yml` 由用户点击“导出当前目录”后生成或更新，不再随节点变化实时自动重写。
+- `AGENTS.md` / `CLAUDE.md` 会在创建主节点时自动导出，也可由用户主动重新导出。
+- `manifest.yml`、`INDEX.md`、`image_catalog.yml` 会在保存或删除节点、文件、图片后自动生成或更新，也可由用户主动重新导出。
 
 ## 目标工作区结构
 
@@ -49,7 +50,7 @@ Game Context Manager（游戏上下文管理器）是一个本地优先的桌面
           <content_id>.md
 ```
 
-`AGENTS.md`、`CLAUDE.md`、`manifest.yml`、`INDEX.md` 和 `image_catalog.yml` 都由用户主动导出；节点 Markdown 在保存节点时写入。
+`AGENTS.md`、`CLAUDE.md` 会在创建主节点时自动导出，也可手动重新导出；`manifest.yml`、`INDEX.md` 和 `image_catalog.yml` 会在保存或删除节点、文件、图片后自动导出，也可手动重新导出。节点 Markdown 在保存节点时写入。
 
 ## 产品边界
 

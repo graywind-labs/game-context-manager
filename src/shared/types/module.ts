@@ -30,4 +30,5 @@ export interface ModuleNodeState {
   modules: ModuleNode[];
   selectedModule?: ModuleNode;
   markdownPreview?: string;
+  exportedPaths?: string[];
 }

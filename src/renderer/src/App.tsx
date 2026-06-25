@@ -247,7 +247,7 @@ const copy = {
     openInFolderAction: '在文件夹中打开',
     openInFolderError: '打开文件夹失败。',
     openInFolderUnavailable: '当前条目没有可打开的文件。',
-    directoryIndexStaleHint: '删除节点后，请在使用前手动导出当前目录。',
+    directoryIndexStaleHint: '删除后会自动更新目录索引。',
     createDialogError: '创建节点失败。',
     createGameLocationHint: '点击创建后需要重新选择本地文件夹。所选文件夹是工作区根目录，AGENT 文件会在根目录下运行；主节点的游戏上下文文件夹会作为该根目录下的子文件夹生成。',
     selectLocationAndCreate: '选择位置并创建',
@@ -262,7 +262,7 @@ const copy = {
     filePreviewError: '读取文件预览失败。',
     deleteFile: '删除',
     deletingFile: '删除中...',
-    confirmDeleteFile: '删除该文件后，需要时可重新手动导出生成。确认删除？',
+    confirmDeleteFile: '删除该文件后会自动同步目录索引；如需恢复 AGENT 文件，可再次导出 AGENTS/CLAUDE。确认删除？',
     fileDeleteError: '删除文件失败。',
     imageDetailTitle: '图片详情',
     mdPreviewButton: 'MD 预览',
@@ -324,8 +324,8 @@ const copy = {
     gameNodeRequiresUser: '先选择当前用户后创建游戏主节点',
     gameNodeReady: '游戏主节点',
     createGameTitle: '游戏主节点',
-    createGamePrompt: '创建一级游戏节点后会生成 game.md；目录索引需手动导出。',
-    editGamePrompt: '编辑可编辑字段后会更新最后编辑者和 game.md；目录索引需手动导出。',
+    createGamePrompt: '创建一级游戏节点后会生成 game.md，并自动导出 AGENT 文件和目录索引。',
+    editGamePrompt: '编辑可编辑字段后会更新最后编辑者、game.md 和目录索引。',
     saveGame: '保存',
     createGame: '创建游戏节点',
     savingGame: '保存中...',
@@ -441,8 +441,8 @@ const copy = {
     gameNodePlaceholder: '游戏主节点待创建',
     modulePlaceholder: '尚未创建模块节点',
     modulePanelTitle: '模块节点',
-    moduleCreatePrompt: '在当前游戏下创建二级模块，保存后会生成 modules/<module_id>/module.md；目录索引需手动导出。',
-    moduleEditPrompt: '编辑模块字段或图片关联后会更新最后编辑者和模块 MD；目录索引需手动导出。',
+    moduleCreatePrompt: '在当前游戏下创建二级模块，保存后会生成 modules/<module_id>/module.md 并自动更新目录索引。',
+    moduleEditPrompt: '编辑模块字段或图片关联后会更新最后编辑者、模块 MD 和目录索引。',
     createModule: '创建模块',
     saveModule: '保存',
     savingModule: '保存中...',
@@ -476,7 +476,7 @@ const copy = {
     imageLibraryPlaceholder: '创建游戏主节点后可上传图片资产。',
     imageCount: '张图片',
     imageUploadTitle: '图片库',
-    imageUploadPrompt: '上传前先填写图片名，文件会按图片名重命名；图片目录需手动导出。',
+    imageUploadPrompt: '上传前先填写图片名，文件会按图片名重命名；上传后会自动更新目录索引。',
     imageUploadDialogTitle: '上传图片',
     imageDropHint: '拖拽图片到这里，或点击选择图片',
     imageDropActiveHint: '松开后选择这张图片',
@@ -507,8 +507,8 @@ const copy = {
     imageIdLabel: '图片ID',
     moduleMarkdownPreview: '创建或选择模块后显示模块 MD 预览。',
     contentPanelTitle: '内容节点',
-    contentCreatePrompt: '在选中模块下创建三级内容，保存后会生成 contents/<content_id>.md；目录索引需手动导出。',
-    contentEditPrompt: '编辑内容字段、账号状态或图片引用后会更新内容 MD；目录索引需手动导出。',
+    contentCreatePrompt: '在选中模块下创建三级内容，保存后会生成 contents/<content_id>.md 并自动更新目录索引。',
+    contentEditPrompt: '编辑内容字段、账号状态或图片引用后会更新内容 MD 和目录索引。',
     createContent: '创建内容',
     saveContent: '保存',
     savingContent: '保存中...',
@@ -568,11 +568,11 @@ const copy = {
     generatedFilesTitle: '基础结构',
     generatedFiles: [
       '.game-context-manager.yml',
-      'AGENTS.md（手动导出）',
-      'CLAUDE.md（手动导出）',
-      'manifest.yml（手动导出）',
-      '<游戏名>游戏上下文/INDEX.md（手动导出）',
-      '<游戏名>游戏上下文/image_catalog.yml（手动导出）'
+      'AGENTS.md（创建主节点时自动导出，也可手动导出）',
+      'CLAUDE.md（创建主节点时自动导出，也可手动导出）',
+      'manifest.yml（保存或删除后自动导出）',
+      '<游戏名>游戏上下文/INDEX.md（保存或删除后自动导出）',
+      '<游戏名>游戏上下文/image_catalog.yml（保存或删除后自动导出）'
     ]
   },
   en: {
@@ -599,7 +599,7 @@ const copy = {
     openInFolderAction: 'Open in folder',
     openInFolderError: 'Failed to open folder.',
     openInFolderUnavailable: 'The current item has no known file to open.',
-    directoryIndexStaleHint: 'After deleting a node, manually export the current directory before using it.',
+    directoryIndexStaleHint: 'The directory index is updated automatically after deletion.',
     createDialogError: 'Failed to create node.',
     createGameLocationHint: 'After clicking create, choose a local folder again. The selected folder is the workspace root where Agent files run; the root node game context folder is created as a child folder inside it.',
     selectLocationAndCreate: 'Choose location and create',
@@ -614,7 +614,7 @@ const copy = {
     filePreviewError: 'Failed to read file preview.',
     deleteFile: 'Delete',
     deletingFile: 'Deleting...',
-    confirmDeleteFile: 'After deleting this file, manually export again when needed. Delete it?',
+    confirmDeleteFile: 'After deleting this file, the directory index is synced automatically. Export AGENTS/CLAUDE again if you need to restore Agent files. Delete it?',
     fileDeleteError: 'Failed to delete file.',
     imageDetailTitle: 'Image details',
     mdPreviewButton: 'MD preview',
@@ -676,8 +676,8 @@ const copy = {
     gameNodeRequiresUser: 'Select a current user before creating the game root node',
     gameNodeReady: 'Game root node',
     createGameTitle: 'Game root node',
-    createGamePrompt: 'Creating the root game node writes game.md; directory indexes are exported manually.',
-    editGamePrompt: 'Editing fields updates the last editor and game.md; directory indexes are exported manually.',
+    createGamePrompt: 'Creating the root game node writes game.md and automatically exports Agent files and directory indexes.',
+    editGamePrompt: 'Editing fields updates the last editor, game.md, and directory indexes.',
     saveGame: 'Save',
     createGame: 'Create game node',
     savingGame: 'Saving...',
@@ -793,8 +793,8 @@ const copy = {
     gameNodePlaceholder: 'Game root node pending',
     modulePlaceholder: 'No module nodes yet',
     modulePanelTitle: 'Module node',
-    moduleCreatePrompt: 'Create a second-level module under the current game. Saving writes modules/<module_id>/module.md; directory indexes are exported manually.',
-    moduleEditPrompt: 'Editing fields or image links updates the last editor and module Markdown; directory indexes are exported manually.',
+    moduleCreatePrompt: 'Create a second-level module under the current game. Saving writes modules/<module_id>/module.md and updates directory indexes automatically.',
+    moduleEditPrompt: 'Editing fields or image links updates the last editor, module Markdown, and directory indexes.',
     createModule: 'Create module',
     saveModule: 'Save',
     savingModule: 'Saving...',
@@ -828,7 +828,7 @@ const copy = {
     imageLibraryPlaceholder: 'Upload image assets after creating the game root node.',
     imageCount: 'images',
     imageUploadTitle: 'Image library',
-    imageUploadPrompt: 'Enter an image name first. The file is renamed from that name; the image catalog is exported manually.',
+    imageUploadPrompt: 'Enter an image name first. The file is renamed from that name; directory indexes update automatically after upload.',
     imageUploadDialogTitle: 'Upload image',
     imageDropHint: 'Drop an image here, or click to choose one',
     imageDropActiveHint: 'Release to select this image',
@@ -859,8 +859,8 @@ const copy = {
     imageIdLabel: 'Image ID',
     moduleMarkdownPreview: 'Create or select a module to show the module Markdown preview.',
     contentPanelTitle: 'Content node',
-    contentCreatePrompt: 'Create a third-level content node under the selected module. Saving writes contents/<content_id>.md; directory indexes are exported manually.',
-    contentEditPrompt: 'Editing content fields, account state, or image references updates content Markdown; directory indexes are exported manually.',
+    contentCreatePrompt: 'Create a third-level content node under the selected module. Saving writes contents/<content_id>.md and updates directory indexes automatically.',
+    contentEditPrompt: 'Editing content fields, account state, or image references updates content Markdown and directory indexes.',
     createContent: 'Create content',
     saveContent: 'Save',
     savingContent: 'Saving...',
@@ -920,11 +920,11 @@ const copy = {
     generatedFilesTitle: 'Base structure',
     generatedFiles: [
       '.game-context-manager.yml',
-      'AGENTS.md (manual export)',
-      'CLAUDE.md (manual export)',
-      'manifest.yml (manual export)',
-      '<game name>游戏上下文/INDEX.md (manual export)',
-      '<game name>游戏上下文/image_catalog.yml (manual export)'
+      'AGENTS.md (auto-exported when creating the root node; manual export remains available)',
+      'CLAUDE.md (auto-exported when creating the root node; manual export remains available)',
+      'manifest.yml (auto-exported after save or delete)',
+      '<game name>游戏上下文/INDEX.md (auto-exported after save or delete)',
+      '<game name>游戏上下文/image_catalog.yml (auto-exported after save or delete)'
     ]
   }
 } as const;
@@ -1227,14 +1227,9 @@ function App(): React.JSX.Element {
     showTransientNotice({ tone: 'muted', title: text.saveSuccess });
   }
 
-  function finishExportWithNotice(status: 'success' | 'error', detail?: string): void {
+  function finishExport(status: 'success' | 'error'): void {
     const nextStatus: ExportStatus = status;
     setExportStatus(nextStatus);
-    showTransientNotice({
-      tone: status === 'success' ? 'muted' : 'danger',
-      title: status === 'success' ? text.exportSuccess : text.exportError,
-      detail
-    });
 
     window.setTimeout(() => {
       setExportStatus((current) => (current === nextStatus ? 'idle' : current));
@@ -1358,33 +1353,43 @@ function App(): React.JSX.Element {
     setCurrentUser(state.currentUser);
   }
 
-  function applyGameState(state: { game?: GameNode; markdownPreview?: string }): void {
+  function applyGameState(state: { game?: GameNode; markdownPreview?: string; exportedPaths?: string[] }): void {
     setGame(state.game);
     setMarkdownPreview(state.markdownPreview ?? '');
     setGameForm(state.game ? gameNodeToForm(state.game) : initialGameForm);
+    mergeExportedPathsFromState(state.exportedPaths);
   }
 
-  function applyImageState(state: { images: ImageAssetView[] }): void {
+  function applyImageState(state: { images: ImageAssetView[]; exportedPaths?: string[] }): void {
     setImages(state.images);
+    mergeExportedPathsFromState(state.exportedPaths);
   }
 
-  function applyModuleState(state: { modules: ModuleNode[]; selectedModule?: ModuleNode; markdownPreview?: string }): void {
+  function applyModuleState(state: { modules: ModuleNode[]; selectedModule?: ModuleNode; markdownPreview?: string; exportedPaths?: string[] }): void {
     setModules(state.modules);
     setSelectedModule(state.selectedModule);
     setModuleMarkdownPreview(state.markdownPreview ?? '');
     setModuleForm(state.selectedModule ? moduleNodeToForm(state.selectedModule) : initialModuleForm);
+    mergeExportedPathsFromState(state.exportedPaths);
   }
 
-  function applyContentState(state: { contents: ContentNode[]; selectedContent?: ContentNode; markdownPreview?: string }): void {
+  function applyContentState(state: { contents: ContentNode[]; selectedContent?: ContentNode; markdownPreview?: string; exportedPaths?: string[] }): void {
     setContents(state.contents);
     setSelectedContent(state.selectedContent);
     setContentMarkdownPreview(state.markdownPreview ?? '');
     setContentForm(state.selectedContent ? contentNodeToForm(state.selectedContent) : initialContentForm);
+    mergeExportedPathsFromState(state.exportedPaths);
   }
 
   function applyApiConfigState(state: { config?: ApiConfig }): void {
     setApiConfig(state.config);
     setApiForm(state.config ? apiConfigToForm(state.config) : initialApiForm);
+  }
+
+  function mergeExportedPathsFromState(paths: string[] | undefined): void {
+    if (paths && paths.length > 0) {
+      setExportedPaths((current) => mergeUniquePaths(current, paths));
+    }
   }
 
   function requestConfirmation(dialog: ConfirmationDialogState): Promise<boolean> {
@@ -1634,7 +1639,7 @@ function App(): React.JSX.Element {
   async function handleExportAgentFiles(): Promise<void> {
     if (!workspaceId) {
       setExportErrorMessage(text.exportRequiresWorkspace);
-      finishExportWithNotice('error', text.exportRequiresWorkspace);
+      finishExport('error');
       return;
     }
 
@@ -1644,24 +1649,24 @@ function App(): React.JSX.Element {
     try {
       const result = await window.gameContextManager.exportAgentFiles({ workspaceId });
       setExportedPaths((current) => mergeUniquePaths(current, result.exportedPaths));
-      finishExportWithNotice('success');
+      finishExport('success');
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       setExportErrorMessage(detail);
-      finishExportWithNotice('error', detail);
+      finishExport('error');
     }
   }
 
   async function handleExportDirectoryIndex(): Promise<void> {
     if (!workspaceId) {
       setExportErrorMessage(text.exportRequiresWorkspace);
-      finishExportWithNotice('error', text.exportRequiresWorkspace);
+      finishExport('error');
       return;
     }
 
     if (!game) {
       setExportErrorMessage(text.exportRequiresGame);
-      finishExportWithNotice('error', text.exportRequiresGame);
+      finishExport('error');
       return;
     }
 
@@ -1671,11 +1676,11 @@ function App(): React.JSX.Element {
     try {
       const result = await window.gameContextManager.exportDirectoryIndex({ workspaceId });
       setExportedPaths((current) => mergeUniquePaths(current, result.exportedPaths));
-      finishExportWithNotice('success');
+      finishExport('success');
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       setExportErrorMessage(detail);
-      finishExportWithNotice('error', detail);
+      finishExport('error');
     }
   }
 
@@ -1792,7 +1797,6 @@ function App(): React.JSX.Element {
     const confirmed = await requestConfirmation({
       title: text.confirmDialogTitle,
       message: text.confirmDeleteGame,
-      detailLines: [text.directoryIndexStaleHint],
       confirmLabel: text.confirmDialogConfirm,
       cancelLabel: text.confirmDialogCancel
     });
@@ -2859,7 +2863,12 @@ function App(): React.JSX.Element {
         }
       });
 
-      setExportedPaths((current) => current.filter((path) => path !== result.deletedPath && path !== file.path));
+      setExportedPaths((current) =>
+        mergeUniquePaths(
+          current.filter((path) => path !== result.deletedPath && path !== file.path),
+          result.exportedPaths ?? []
+        )
+      );
 
       if (selectedIndexFile?.id === file.id) {
         setSelectedIndexFile(undefined);
@@ -3206,6 +3215,83 @@ function App(): React.JSX.Element {
   function handleStartNewContent(): void {
     openCreateContentDialog();
   }
+
+  useEffect(() => {
+    function handleDocumentKeyDown(event: KeyboardEvent): void {
+      const isSaveShortcut = (event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 's';
+
+      if (!isSaveShortcut) {
+        return;
+      }
+
+      const isNodeDetail =
+        activeDetailKind === 'game' ||
+        activeDetailKind === 'module' ||
+        activeDetailKind === 'content';
+
+      if (!isNodeDetail) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (
+        createNodeDialog ||
+        isImageUploadDialogOpen ||
+        confirmationDialog ||
+        isSettingsOpen ||
+        isHelpOpen ||
+        aiDialogKind ||
+        previewNodeKey
+      ) {
+        return;
+      }
+
+      if (activeDetailKind === 'game') {
+        if (game && currentUser && isGameDirty && gameStatus !== 'saving' && gameStatus !== 'deleting') {
+          void handleSaveGame();
+        }
+        return;
+      }
+
+      if (activeDetailKind === 'module') {
+        if (game && selectedModule && currentUser && isModuleDirty && moduleStatus !== 'saving' && moduleStatus !== 'deleting') {
+          void handleSaveModule();
+        }
+        return;
+      }
+
+      if (selectedModule && selectedContent && currentUser && isContentDirty && contentStatus !== 'saving' && contentStatus !== 'deleting') {
+        void handleSaveContent();
+      }
+    }
+
+    document.addEventListener('keydown', handleDocumentKeyDown);
+
+    return () => document.removeEventListener('keydown', handleDocumentKeyDown);
+  }, [
+    activeDetailKind,
+    aiDialogKind,
+    confirmationDialog,
+    contentForm,
+    contentStatus,
+    createNodeDialog,
+    currentUser,
+    game,
+    gameForm,
+    gameStatus,
+    isContentDirty,
+    isGameDirty,
+    isHelpOpen,
+    isImageUploadDialogOpen,
+    isModuleDirty,
+    isSettingsOpen,
+    moduleForm,
+    moduleStatus,
+    previewNodeKey,
+    selectedContent,
+    selectedModule
+  ]);
 
   return (
     <main className="grid h-screen overflow-hidden grid-cols-[320px_minmax(0,1fr)] bg-slate-100 text-slate-950">

@@ -32,4 +32,5 @@ export interface ContentNodeState {
   contents: ContentNode[];
   selectedContent?: ContentNode;
   markdownPreview?: string;
+  exportedPaths?: string[];
 }

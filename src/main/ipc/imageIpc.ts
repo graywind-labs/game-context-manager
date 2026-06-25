@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { basename, extname, join } from 'node:path';
 import electron from 'electron';
 import { deleteImageAssetFiles } from '../services/fileExportService.js';
+import { exportDirectoryIndexForWorkspace } from '../services/exportWorkflowService.js';
 import { createGameFolderName } from '../services/workspaceService.js';
 import type { SqliteService } from '../services/sqliteService.js';
 import {
@@ -81,8 +82,12 @@ export function registerImageIpc(sqliteService: SqliteService): void {
     mkdirSync(join(workspace.contextPath, gameFolderName, 'assets', 'images'), { recursive: true });
     source.writeTo(destinationPath);
     sqliteService.createImageAsset(input.workspaceId, image);
+    const exportedPaths = exportDirectoryIndexForWorkspace(sqliteService, input.workspaceId);
 
-    return getImageState(sqliteService, input.workspaceId);
+    return {
+      ...getImageState(sqliteService, input.workspaceId),
+      exportedPaths
+    };
   });
 
   ipcMain.handle(IMAGE_DELETE_CHANNEL, (_event, input: DeleteImageAssetInput): ImageAssetState => {
@@ -108,8 +113,12 @@ export function registerImageIpc(sqliteService: SqliteService): void {
       images: sqliteService.getImageAssets(input.workspaceId),
       imageLinks: sqliteService.getNodeImageLinks(input.workspaceId)
     });
+    const exportedPaths = exportDirectoryIndexForWorkspace(sqliteService, input.workspaceId);
 
-    return getImageState(sqliteService, input.workspaceId);
+    return {
+      ...getImageState(sqliteService, input.workspaceId),
+      exportedPaths
+    };
   });
 }
 

@@ -1,8 +1,9 @@
 import electron from 'electron';
 import { existsSync, readFileSync, unlinkSync } from 'node:fs';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
+import { exportDirectoryIndexForWorkspaceIfGameExists } from '../services/exportWorkflowService.js';
 import { resolveKnownWorkspaceItemFilePath } from '../services/fileExportService.js';
-import { createWorkspaceStructure, importWorkspaceFromDirectory } from '../services/workspaceService.js';
+import { WORKSPACE_MARKER_FILE_NAME, createWorkspaceStructure, importWorkspaceFromDirectory } from '../services/workspaceService.js';
 import type { SqliteService } from '../services/sqliteService.js';
 import type {
   OpenKnownWorkspaceItemInput,
@@ -130,6 +131,12 @@ export function registerWorkspaceIpc(sqliteService: SqliteService): void {
       return {};
     }
 
+    const markerPath = workspace.markerPath ?? join(workspace.contextPath, WORKSPACE_MARKER_FILE_NAME);
+
+    if (!existsSync(markerPath)) {
+      return {};
+    }
+
     const currentUserId =
       workspace.currentUserId ?? sqliteService.getUserState(workspace.id).currentUser?.id ?? sqliteService.getUserState().currentUser?.id;
     const restoredWorkspace = importWorkspaceFromDirectory(workspace.contextPath, currentUserId);
@@ -162,9 +169,11 @@ export function registerWorkspaceIpc(sqliteService: SqliteService): void {
 
     const safeTargetPath = resolveKnownItemPath(sqliteService, input);
     unlinkSync(safeTargetPath);
+    const exportedPaths = exportDirectoryIndexForWorkspaceIfGameExists(sqliteService, input.workspaceId);
 
     return {
-      deletedPath: safeTargetPath
+      deletedPath: safeTargetPath,
+      exportedPaths
     };
   });
 }

@@ -1,5 +1,6 @@
 import electron from 'electron';
 import { deleteGameNodeFiles, exportGameNodeFiles, readGameMarkdownPreview } from '../services/fileExportService.js';
+import { exportAgentFilesForWorkspace, exportDirectoryIndexForWorkspace } from '../services/exportWorkflowService.js';
 import { writeWorkspaceMarker } from '../services/workspaceService.js';
 import type { SqliteService } from '../services/sqliteService.js';
 import type {
@@ -40,8 +41,15 @@ export function registerGameIpc(sqliteService: SqliteService): void {
       contents: sqliteService.getContentNodes(input.workspaceId),
       imageLinks: sqliteService.getNodeImageLinks(input.workspaceId)
     });
+    const exportedPaths = [
+      ...exportAgentFilesForWorkspace(sqliteService, input.workspaceId),
+      ...exportDirectoryIndexForWorkspace(sqliteService, input.workspaceId)
+    ];
 
-    return getGameState(sqliteService, input.workspaceId);
+    return {
+      ...getGameState(sqliteService, input.workspaceId),
+      exportedPaths
+    };
   });
 
   ipcMain.handle(GAME_UPDATE_CHANNEL, (_event, input: UpdateGameNodeInput): GameNodeState => {
@@ -61,8 +69,12 @@ export function registerGameIpc(sqliteService: SqliteService): void {
       contents: sqliteService.getContentNodes(input.workspaceId),
       imageLinks: sqliteService.getNodeImageLinks(input.workspaceId)
     });
+    const exportedPaths = exportDirectoryIndexForWorkspace(sqliteService, input.workspaceId);
 
-    return getGameState(sqliteService, input.workspaceId);
+    return {
+      ...getGameState(sqliteService, input.workspaceId),
+      exportedPaths
+    };
   });
 
   ipcMain.handle(GAME_DELETE_CHANNEL, (_event, input: DeleteGameNodeInput): GameNodeState => {
