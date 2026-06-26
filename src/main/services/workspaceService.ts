@@ -805,7 +805,7 @@ function listDirectories(directoryPath: string): string[] {
 
 function extractSection(body: string, title: string): string | undefined {
   const escapedTitle = title.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = body.match(new RegExp(`^##\\s+${escapedTitle}\\s*\\r?\\n([\\s\\S]*?)(?=^##\\s+|\\s*$)`, 'm'));
+  const match = body.match(new RegExp(`(?:^|\\r?\\n)##[ \\t]+${escapedTitle}[ \\t]*\\r?\\n([\\s\\S]*?)(?=\\r?\\n##[ \\t]+|\\s*$)`));
 
   return match?.[1]?.trim();
 }

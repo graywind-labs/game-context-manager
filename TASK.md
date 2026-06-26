@@ -1861,3 +1861,47 @@
 - `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
 - `corepack pnpm build` 已通过。
 - `git diff --check` 已通过；仅输出当前工作区 LF/CRLF 转换提示。
+
+---
+
+## T038 — 修复多行文本刷新或重启后被截断
+
+**状态**：DONE
+
+### 要做什么
+
+根据用户反馈，任一文本框输入多行信息并保存后，刷新或关闭重启再恢复工作区时，只剩第一行，其余行丢失。需要修复工作区重新扫描 Markdown 时的多行字段读取问题。
+
+需要包括：
+
+- 保存到 Markdown 的多行字段在刷新/重启导入后保持完整。
+- 覆盖游戏、模块、内容节点的 Markdown 正文字段。
+- 增加回归测试，防止章节正文再次只读取第一行。
+
+### 暂不做什么
+
+- 不改变 GUI 表单交互。
+- 不改变 Markdown 文件结构或 YAML frontmatter 字段。
+- 不改变数据库 schema。
+
+### 验收标准
+
+- 多行游戏字段刷新/重启导入后不截断。
+- 多行模块字段刷新/重启导入后不截断。
+- 多行内容字段刷新/重启导入后不截断。
+- `corepack pnpm typecheck` 通过。
+- `corepack pnpm test` 通过。
+- `corepack pnpm build` 通过。
+- `corepack pnpm lint` 若仍未配置，明确记录。
+
+### 验收结果
+
+已完成。
+
+- 修复 `workspaceService.ts` 的 Markdown 章节提取正则：章节正文现在会读取到下一个二级标题或文件末尾，不再把普通行尾当作章节结束。
+- `workspaceService.test.ts` 已加入游戏、模块、内容节点多行字段导入断言，覆盖刷新/重启时从 Markdown 重建数据库快照的路径。
+- `corepack pnpm exec tsx tests/unit/workspaceService.test.ts` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm typecheck` 已通过。
+- `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
+- `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
+- `corepack pnpm build` 已通过。

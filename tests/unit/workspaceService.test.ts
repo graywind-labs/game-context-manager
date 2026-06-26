@@ -84,7 +84,7 @@ try {
     gameName: '导入测试游戏',
     gameVersion: 'v1',
     projectStage: ProjectStage.Testing,
-    coreGameplay: '核心循环来自文件。',
+    coreGameplay: '核心循环来自文件。\n第二行仍应在刷新导入后保留。',
     creatorId: users[0].id,
     lastEditorId: users[0].id,
     createdAt: '2026-06-18T12:00:00.000Z',
@@ -107,7 +107,7 @@ try {
     gameId: game.id,
     gameVersion: game.gameVersion,
     moduleName: '导入模块',
-    modulePositioning: '用于验证导入模块。',
+    modulePositioning: '用于验证导入模块。\n第二行定位说明不能被截断。',
     systemRules: '模块规则。',
     resourceFlow: '资源流。',
     imageIds: [image.id],
@@ -132,7 +132,7 @@ try {
     cumulativePaymentAmount: '6',
     maxMainlineProgress: '2-1',
     characterLevel: '8',
-    processDescription: '导入内容引用 @img_import_main。',
+    processDescription: '导入内容引用 @img_import_main。\n第二行过程说明也必须保留。',
     subjectiveFun: '内容乐趣。',
     subjectiveKnownProblems: '内容问题。',
     subjectiveOptimizationDirections: '内容优化。',
@@ -188,6 +188,7 @@ try {
   assert.equal(importedWorkspace.summary.existingPaths.includes('导入测试游戏游戏上下文/INDEX.md'), true);
   assert.equal(importedWorkspace.summary.existingPaths.includes('导入测试游戏游戏上下文/image_catalog.yml'), true);
   assert.equal(importedWorkspace.snapshot.game?.gameName, game.gameName);
+  assert.equal(importedWorkspace.snapshot.game?.coreGameplay, game.coreGameplay);
   assert.equal(importedWorkspace.snapshot.modules[0].modulePositioning, module.modulePositioning);
   assert.equal(importedWorkspace.snapshot.contents[0].processDescription, content.processDescription);
   assert.equal(importedWorkspace.snapshot.images[0].originalFileName, image.originalFileName);
