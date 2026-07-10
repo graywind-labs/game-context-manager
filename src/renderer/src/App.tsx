@@ -87,7 +87,7 @@ interface ConfirmationDialogState {
   message: string;
   detailLines?: string[];
   confirmLabel: string;
-  cancelLabel: string;
+  cancelLabel?: string;
 }
 
 interface ModuleFormState {
@@ -262,7 +262,7 @@ const copy = {
     filePreviewError: '读取文件预览失败。',
     deleteFile: '删除',
     deletingFile: '删除中...',
-    confirmDeleteFile: '删除该文件后会自动同步目录索引；如需恢复 AGENT 文件，可再次导出 AGENTS/CLAUDE。确认删除？',
+    confirmDeleteFile: '删除该文件后会自动同步目录索引；如需恢复 AGENT 文件，可再次导出 AGENTS.md。确认删除？',
     fileDeleteError: '删除文件失败。',
     imageDetailTitle: '图片详情',
     mdPreviewButton: 'MD 预览',
@@ -275,7 +275,10 @@ const copy = {
     removeLinkedImage: '取消关联',
     linkedImagesEmpty: '当前节点未关联图片。',
     noUnlinkedImages: '没有可添加的图片。',
-    exportAgentFiles: '导出 AGENTS/CLAUDE',
+    exportAgentFiles: '导出 AGENTS.md',
+    agentFileConflictTitle: 'AGENTS.md 内容冲突',
+    agentFileConflictMessage: '当前目录已有内容不同的 AGENTS.md。为避免误覆盖，请先在文件管理器中手动删除原有 AGENTS.md，再重新执行导出。',
+    acknowledge: '知道了',
     exportDirectoryIndex: '导出当前目录',
     exporting: '导出中...',
     exportSuccess: '导出完成',
@@ -569,7 +572,6 @@ const copy = {
     generatedFiles: [
       '.game-context-manager.yml',
       'AGENTS.md（创建主节点时自动导出，也可手动导出）',
-      'CLAUDE.md（创建主节点时自动导出，也可手动导出）',
       'manifest.yml（保存或删除后自动导出）',
       '<游戏名>游戏上下文/INDEX.md（保存或删除后自动导出）',
       '<游戏名>游戏上下文/image_catalog.yml（保存或删除后自动导出）'
@@ -614,7 +616,7 @@ const copy = {
     filePreviewError: 'Failed to read file preview.',
     deleteFile: 'Delete',
     deletingFile: 'Deleting...',
-    confirmDeleteFile: 'After deleting this file, the directory index is synced automatically. Export AGENTS/CLAUDE again if you need to restore Agent files. Delete it?',
+    confirmDeleteFile: 'After deleting this file, the directory index is synced automatically. Export AGENTS.md again if you need to restore it. Delete it?',
     fileDeleteError: 'Failed to delete file.',
     imageDetailTitle: 'Image details',
     mdPreviewButton: 'MD preview',
@@ -627,7 +629,10 @@ const copy = {
     removeLinkedImage: 'Unlink',
     linkedImagesEmpty: 'No linked images for this node.',
     noUnlinkedImages: 'No unlinked images available.',
-    exportAgentFiles: 'Export AGENTS/CLAUDE',
+    exportAgentFiles: 'Export AGENTS.md',
+    agentFileConflictTitle: 'AGENTS.md content conflict',
+    agentFileConflictMessage: 'The current directory already contains an AGENTS.md with different content. To prevent an accidental overwrite, manually delete that AGENTS.md before exporting again.',
+    acknowledge: 'Got it',
     exportDirectoryIndex: 'Export current directory',
     exporting: 'Exporting...',
     exportSuccess: 'Export complete',
@@ -921,7 +926,6 @@ const copy = {
     generatedFiles: [
       '.game-context-manager.yml',
       'AGENTS.md (auto-exported when creating the root node; manual export remains available)',
-      'CLAUDE.md (auto-exported when creating the root node; manual export remains available)',
       'manifest.yml (auto-exported after save or delete)',
       '<game name>游戏上下文/INDEX.md (auto-exported after save or delete)',
       '<game name>游戏上下文/image_catalog.yml (auto-exported after save or delete)'
@@ -1058,7 +1062,7 @@ function App(): React.JSX.Element {
     ? contents.filter((content) => content.moduleId === selectedModule.id).length
     : 0;
   const gameModuleCount = game ? modules.length : 0;
-  const agentFileItems = buildFileSelections(exportedPaths, ['AGENTS.md', 'CLAUDE.md']);
+  const agentFileItems = buildFileSelections(exportedPaths, ['AGENTS.md']);
   const rootIndexFileItems = buildFileSelections(exportedPaths, ['manifest.yml']);
   const gameIndexFileItems = buildFileSelections(exportedPaths, ['INDEX.md', 'image_catalog.yml']);
   const exportButtonDisabled =
@@ -1652,6 +1656,13 @@ function App(): React.JSX.Element {
       finishExport('success');
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
+      if (detail.includes('AGENTS_FILE_CONFLICT')) {
+        await requestConfirmation({
+          title: text.agentFileConflictTitle,
+          message: text.agentFileConflictMessage,
+          confirmLabel: text.acknowledge
+        });
+      }
       setExportErrorMessage(detail);
       finishExport('error');
     }
@@ -1782,6 +1793,13 @@ function App(): React.JSX.Element {
       return true;
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
+      if (detail.includes('AGENTS_FILE_CONFLICT')) {
+        await requestConfirmation({
+          title: text.agentFileConflictTitle,
+          message: text.agentFileConflictMessage,
+          confirmLabel: text.acknowledge
+        });
+      }
       setGameStatus('error');
       setGameErrorMessage(detail);
       showSaveFailure(detail);
@@ -3111,6 +3129,13 @@ function App(): React.JSX.Element {
         setGameStatus('idle');
       } catch (error) {
         const nextErrorMessage = error instanceof Error ? error.message : String(error);
+        if (nextErrorMessage.includes('AGENTS_FILE_CONFLICT')) {
+          await requestConfirmation({
+            title: text.agentFileConflictTitle,
+            message: text.agentFileConflictMessage,
+            confirmLabel: text.acknowledge
+          });
+        }
         setGameStatus('error');
         setGameErrorMessage(nextErrorMessage);
         setCreateNodeDialog((current) => (current ? { ...current, errorMessage: nextErrorMessage } : current));
@@ -5933,13 +5958,15 @@ function ConfirmationDialog({
           </ul>
         ) : null}
         <div className="mt-5 flex justify-end gap-2">
-          <button
-            className="h-9 rounded-md border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:border-slate-400"
-            type="button"
-            onClick={onCancel}
-          >
-            {dialog.cancelLabel}
-          </button>
+          {dialog.cancelLabel ? (
+            <button
+              className="h-9 rounded-md border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:border-slate-400"
+              type="button"
+              onClick={onCancel}
+            >
+              {dialog.cancelLabel}
+            </button>
+          ) : null}
           <button
             className="h-9 rounded-md bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700"
             type="button"
@@ -7450,7 +7477,6 @@ function getKnownWorkspaceItemFromEventTarget(target: EventTarget | null): Known
 function isKnownWorkspaceIndexFileName(fileName: string | undefined): fileName is KnownWorkspaceIndexFileName {
   return (
     fileName === 'AGENTS.md' ||
-    fileName === 'CLAUDE.md' ||
     fileName === 'manifest.yml' ||
     fileName === 'INDEX.md' ||
     fileName === 'image_catalog.yml'
@@ -7458,7 +7484,7 @@ function isKnownWorkspaceIndexFileName(fileName: string | undefined): fileName i
 }
 
 function isAgentInstructionFile(fileName: string): boolean {
-  return fileName === 'AGENTS.md' || fileName === 'CLAUDE.md';
+  return fileName === 'AGENTS.md';
 }
 
 function findPathByFileName(paths: string[], fileName: string): string | undefined {

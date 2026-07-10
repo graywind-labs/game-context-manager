@@ -8,6 +8,8 @@ Use the structured game context in this workspace to help with game operation, t
 
 Work from a player/operator/reviewer perspective. This workspace is not a source-code development repo unless the user separately provides code.
 
+Note: Read documents using UTF-8; PowerShell's default encoding may otherwise produce garbled text.
+
 ## Read Order
 
 1. Open `manifest.yml`.

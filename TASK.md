@@ -118,9 +118,6 @@
 - `corepack pnpm typecheck` 已通过。
 - `corepack pnpm test` 已通过。
 - `corepack pnpm build` 已通过。
-- `corepack pnpm lint` 未通过：当前仍未配置 lint 脚本。
-
----
 
 ## T003 — 本地数据库与迁移初始化
 
@@ -1083,6 +1080,31 @@
 - `corepack pnpm test` 已通过；`node:sqlite` 仍输出 ExperimentalWarning。
 - `corepack pnpm lint` 已执行但失败：当前尚未配置 lint 脚本。
 - `corepack pnpm build` 已通过。
+
+---
+
+## T039 — 仅导出 AGENTS.md 并防止覆盖现有不同内容
+
+**状态**：DONE
+
+### 要做什么
+
+- 停止创建、手动导出、导入识别和左侧展示 `CLAUDE.md`。
+- 自动或手动生成前，若根目录已有内容不同于内置模板的 `AGENTS.md`，必须中止写入。
+- 发生冲突时弹窗告知用户先手动删除现有 `AGENTS.md`，避免误覆盖。
+- 同步 manifest、示例、测试和文档。
+
+### 验收结果
+
+已完成。
+
+- `fileExportService` 现在只生成 `AGENTS.md`；同路径已有不同内容时抛出 `AGENTS_FILE_CONFLICT`，不写入文件。
+- 创建主节点会在写入节点和数据库前预检该冲突；手动导出同样受保护。GUI 会弹出中英文提示，要求用户手动删除旧文件后再试。
+- `CLAUDE.md` 已从可识别文件类型、文件树、manifest、工作区摘要和示例工作区中移除；历史工作区中的该文件不会被自动删除。
+- 单元测试覆盖仅导出 `AGENTS.md` 以及冲突时保留用户原文件内容。
+- `corepack pnpm typecheck` 和 `corepack pnpm test` 已通过。
+- 修复冲突提示弹窗重复显示两个“知道了”按钮的问题；信息提示没有取消操作时只显示一个确认按钮。
+- 内置导出的中文 `AGENTS.md` 已加入 UTF-8 读取提醒，并为英文导出和示例提供对应说明。
 - `git diff --check` 已通过；仅输出当前工作区 LF/CRLF 转换提示。
 
 ---

@@ -189,13 +189,23 @@ export function exportContentNodeFiles(options: ExportContentNodeOptions): strin
 
 export function exportAgentInstructionFiles(options: ExportAgentInstructionFilesOptions): string[] {
   const agentsPath = join(options.workspace.contextPath, 'AGENTS.md');
-  const claudePath = join(options.workspace.contextPath, 'CLAUDE.md');
   const language = normalizeExportLanguage(options.language);
+  const content = renderDownstreamAgentsMarkdown(language);
 
-  atomicWriteTextFile(agentsPath, renderDownstreamAgentsMarkdown(language));
-  atomicWriteTextFile(claudePath, renderDownstreamClaudeMarkdown(language));
+  assertAgentInstructionFileCanBeExported(options.workspace, language);
 
-  return [agentsPath, claudePath];
+  atomicWriteTextFile(agentsPath, content);
+
+  return [agentsPath];
+}
+
+export function assertAgentInstructionFileCanBeExported(workspace: WorkspaceConfig, language?: AppLanguage): void {
+  const agentsPath = join(workspace.contextPath, 'AGENTS.md');
+  const content = renderDownstreamAgentsMarkdown(normalizeExportLanguage(language));
+
+  if (existsSync(agentsPath) && readFileSync(agentsPath, 'utf8') !== content) {
+    throw new Error('AGENTS_FILE_CONFLICT');
+  }
 }
 
 export function exportDirectoryIndexFiles(options: ExportDirectoryIndexFilesOptions): string[] {
@@ -373,7 +383,7 @@ export function resolveKnownWorkspaceItemFilePath(options: {
 
   switch (item.kind) {
     case 'indexFile': {
-      if (item.fileName === 'AGENTS.md' || item.fileName === 'CLAUDE.md' || item.fileName === 'manifest.yml') {
+      if (item.fileName === 'AGENTS.md' || item.fileName === 'manifest.yml') {
         return join(options.workspace.contextPath, item.fileName);
       }
 
@@ -700,7 +710,6 @@ function writeUpdatedManifest(
     generated_at: generatedAt,
     language,
     agents: 'AGENTS.md',
-    claude: 'CLAUDE.md',
     description: text.manifestDescription
   };
   manifest.game = {
@@ -764,7 +773,6 @@ function writeUpdatedManifest(
   };
   manifest.task_context_entries = {
     start_here: 'AGENTS.md',
-    claude: 'CLAUDE.md',
     manifest: 'manifest.yml',
     game_folder: `${paths.gameFolderName}/`,
     game_index: `${paths.gameFolderName}/INDEX.md`,
@@ -959,6 +967,8 @@ Use the structured game context in this workspace to help with game operation, t
 
 Work from a player/operator/reviewer perspective. This workspace is not a source-code development repo unless the user separately provides code.
 
+Note: Read documents using UTF-8; PowerShell's default encoding may otherwise produce garbled text.
+
 ## Read Order
 
 1. Open \`manifest.yml\`.
@@ -1024,6 +1034,8 @@ Useful patterns:
 利用本工作区沉淀的结构化游戏上下文，帮助用户处理游戏运营、测试、客服、评测、调优讨论、立项/结项、市场/竞品/用户分析、UI 优化方向、预览图规划、游戏机制问答等围绕一个“已封装游戏体验”的问题。
 
 默认站在玩家、运营、测试、客服、评测者和产品调优视角理解游戏。除非用户另外提供源码并明确要求，否则不要把本工作区当成游戏程序源码仓库。
+
+注意：读取文档须使用UTF-8编码，否则PowerShell 默认编码会读成乱码。
 
 ## 读取顺序
 

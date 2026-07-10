@@ -97,7 +97,6 @@ export function createWorkspaceStructure(
 
   const files = {
     agentsPath: join(contextPath, 'AGENTS.md'),
-    claudePath: join(contextPath, 'CLAUDE.md'),
     manifestPath: join(contextPath, 'manifest.yml'),
     markerPath
   };
@@ -185,7 +184,6 @@ export function importWorkspaceFromDirectory(selectedDirectory: string, currentU
     updatedAt: workspace.updatedAt,
     files: {
       agentsPath: join(contextPath, 'AGENTS.md'),
-      claudePath: join(contextPath, 'CLAUDE.md'),
       manifestPath,
       markerPath
     },
@@ -779,7 +777,6 @@ function getExistingWorkspacePaths(rootPath: string, contextPath: string, gameFo
     contextPath,
     join(contextPath, WORKSPACE_MARKER_FILE_NAME),
     join(contextPath, 'AGENTS.md'),
-    join(contextPath, 'CLAUDE.md'),
     join(contextPath, 'manifest.yml'),
     ...(gameFolderName
       ? [

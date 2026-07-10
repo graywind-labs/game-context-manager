@@ -1,6 +1,5 @@
 export interface CreatedWorkspaceFileSet {
   agentsPath: string;
-  claudePath: string;
   manifestPath: string;
   markerPath: string;
 }
@@ -51,7 +50,7 @@ export interface WorkspaceRestoreResult {
   workspace?: WorkspaceImportSummary;
 }
 
-export type KnownWorkspaceIndexFileName = 'AGENTS.md' | 'CLAUDE.md' | 'manifest.yml' | 'INDEX.md' | 'image_catalog.yml';
+export type KnownWorkspaceIndexFileName = 'AGENTS.md' | 'manifest.yml' | 'INDEX.md' | 'image_catalog.yml';
 
 export type KnownWorkspaceItem =
   | {

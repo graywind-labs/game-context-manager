@@ -41,16 +41,12 @@ assert.equal(existsSync(manifestPath), true);
 
 const sampleReadme = readFileSync(join(sampleRoot, 'README.md'), 'utf8');
 assert.match(sampleReadme, /Codex/);
-assert.match(sampleReadme, /Claude Code/);
 assert.match(sampleReadme, /manifest\.yml/);
 assert.match(sampleReadme, /Manual Readability Check/);
 
-for (const staticFile of ['AGENTS.md', 'CLAUDE.md', 'README.md']) {
+for (const staticFile of ['AGENTS.md', 'README.md']) {
   assert.equal(existsSync(join(contextRoot, staticFile)), true);
 }
-const sampleClaude = readFileSync(join(contextRoot, 'CLAUDE.md'), 'utf8');
-assert.match(sampleClaude, /Common Task Playbooks/);
-assert.match(sampleClaude, /Boundaries/);
 
 const manifest = parse(readFileSync(manifestPath, 'utf8')) as SampleManifest;
 assert.equal(manifest.game.node_id, 'starfall_workshop');
@@ -122,7 +118,6 @@ assert.equal(importedSample.snapshot.contents[0].moduleId.length > 0, true);
 
 for (const sampleFile of [
   'AGENTS.md',
-  'CLAUDE.md',
   'manifest.yml',
   'starfall_workshop/game.md',
   'starfall_workshop/INDEX.md',

@@ -19,14 +19,6 @@ This example is a small, fake workspace for verifying that Game Context Manager 
 4. Read only the module/content Markdown needed for the current task.
 5. Resolve `@image_id` references through `manifest.yml` or `image_catalog.yml`; for image-centered questions, use `linked_node_files` to find related node files.
 
-## How Claude Code / WorkBuddy Should Read It
-
-1. Open `CLAUDE.md`.
-2. Read `manifest.yml`.
-3. Load `starfall_workshop/game.md` first.
-4. Use the per-game `INDEX.md` and manifest `field_schema` to decide which module/content fields are relevant.
-5. Use `image_catalog.yml` `linked_node_files` when a task starts from an image.
-
 ## Manual Readability Check
 
 Checked on 2026-06-23:

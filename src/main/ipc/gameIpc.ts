@@ -1,5 +1,10 @@
 import electron from 'electron';
-import { deleteGameNodeFiles, exportGameNodeFiles, readGameMarkdownPreview } from '../services/fileExportService.js';
+import {
+  assertAgentInstructionFileCanBeExported,
+  deleteGameNodeFiles,
+  exportGameNodeFiles,
+  readGameMarkdownPreview
+} from '../services/fileExportService.js';
 import { exportAgentFilesForWorkspace, exportDirectoryIndexForWorkspace } from '../services/exportWorkflowService.js';
 import { writeWorkspaceMarker } from '../services/workspaceService.js';
 import type { SqliteService } from '../services/sqliteService.js';
@@ -27,6 +32,7 @@ export function registerGameIpc(sqliteService: SqliteService): void {
   ipcMain.handle(GAME_CREATE_CHANNEL, (_event, input: CreateGameNodeInput): GameNodeState => {
     const workspace = requireWorkspace(sqliteService, input.workspaceId);
     const currentUserId = requireCurrentUserId(workspace);
+    assertAgentInstructionFileCanBeExported(workspace, sqliteService.getAppSettings().language);
     const game = sqliteService.createGameNode(input, currentUserId);
     const refreshedWorkspace = requireWorkspace(sqliteService, input.workspaceId);
     const users = sqliteService.getUserState(input.workspaceId).users;

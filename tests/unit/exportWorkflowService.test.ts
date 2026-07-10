@@ -60,9 +60,8 @@ try {
   });
 
   const agentPaths = exportAgentFilesForWorkspace(sqliteService, workspaceSummary.id);
-  assert.deepEqual(agentPaths.sort(), [join(tempDir, 'AGENTS.md'), join(tempDir, 'CLAUDE.md')].sort());
+  assert.deepEqual(agentPaths, [join(tempDir, 'AGENTS.md')]);
   assert.equal(existsSync(join(tempDir, 'AGENTS.md')), true);
-  assert.equal(existsSync(join(tempDir, 'CLAUDE.md')), true);
 
   const indexPaths = exportDirectoryIndexForWorkspace(sqliteService, workspaceSummary.id);
   const gameDirectory = join(tempDir, '自动导出测试游戏上下文');
@@ -79,11 +78,10 @@ try {
 
   const manifest = parse(readFileSync(join(tempDir, 'manifest.yml'), 'utf8')) as {
     game: { path: string; index: string; image_catalog: string };
-    workspace: { agents: string; claude: string };
+    workspace: { agents: string };
   };
 
   assert.equal(manifest.workspace.agents, 'AGENTS.md');
-  assert.equal(manifest.workspace.claude, 'CLAUDE.md');
   assert.equal(manifest.game.path, '自动导出测试游戏上下文/game.md');
   assert.equal(manifest.game.index, '自动导出测试游戏上下文/INDEX.md');
   assert.equal(manifest.game.image_catalog, '自动导出测试游戏上下文/image_catalog.yml');

@@ -150,7 +150,6 @@ try {
   assert.equal(existsSync(join(gameDirectory, 'image_catalog.yml')), false);
   assert.equal(existsSync(join(tempDir, 'manifest.yml')), false);
   assert.equal(existsSync(join(tempDir, 'AGENTS.md')), false);
-  assert.equal(existsSync(join(tempDir, 'CLAUDE.md')), false);
   assert.match(gameMarkdown, /node_type: game/);
   assert.match(gameMarkdown, /creator: 策划 A/);
   assert.match(gameMarkdown, /## 当前主要问题\n\n/);
@@ -190,15 +189,17 @@ try {
   assert.equal(existsSync(join(tempDir, 'manifest.yml')), false);
 
   const agentPaths = exportAgentInstructionFiles({ workspace, language: 'zh' });
-  assert.deepEqual(agentPaths.sort(), [join(tempDir, 'AGENTS.md'), join(tempDir, 'CLAUDE.md')].sort());
+  assert.deepEqual(agentPaths, [join(tempDir, 'AGENTS.md')]);
   assert.match(readFileSync(join(tempDir, 'AGENTS.md'), 'utf8'), /manifest\.yml/);
   assert.match(readFileSync(join(tempDir, 'AGENTS.md'), 'utf8'), /上下文选择规则/);
   assert.match(readFileSync(join(tempDir, 'AGENTS.md'), 'utf8'), /游戏运营、测试、客服、评测/);
-  assert.match(readFileSync(join(tempDir, 'CLAUDE.md'), 'utf8'), /image_catalog\.yml/);
-  assert.match(readFileSync(join(tempDir, 'CLAUDE.md'), 'utf8'), /WorkBuddy/);
-  assert.match(readFileSync(join(tempDir, 'CLAUDE.md'), 'utf8'), /上下文选择规则/);
-  assert.match(readFileSync(join(tempDir, 'CLAUDE.md'), 'utf8'), /常见任务处理方式/);
-  assert.match(readFileSync(join(tempDir, 'CLAUDE.md'), 'utf8'), /## 边界/);
+  assert.match(readFileSync(join(tempDir, 'AGENTS.md'), 'utf8'), /注意：读取文档须使用UTF-8编码，否则PowerShell 默认编码会读成乱码。/);
+  writeFileSync(join(tempDir, 'AGENTS.md'), '# Human-written instructions\n', 'utf8');
+  assert.throws(
+    () => exportAgentInstructionFiles({ workspace, language: 'zh' }),
+    /AGENTS_FILE_CONFLICT/
+  );
+  assert.equal(readFileSync(join(tempDir, 'AGENTS.md'), 'utf8'), '# Human-written instructions\n');
 
   const indexPaths = exportDirectoryIndexFiles({
     workspace,
@@ -251,7 +252,7 @@ try {
   ]);
 
   const manifest = parse(readFileSync(join(tempDir, 'manifest.yml'), 'utf8')) as {
-    workspace: { generated_at: string; language: string; agents: string; claude: string; description: string };
+    workspace: { generated_at: string; language: string; agents: string; description: string };
     game: { node_id: string; name: string; version: string; path: string; index: string; image_catalog: string; project_stage_label: string };
     modules: Record<string, { name: string; path: string; images: string[] }>;
     contents: Record<string, { title: string; module_id: string; path: string; images: string[] }>;
@@ -263,7 +264,6 @@ try {
   assert.equal(manifest.workspace.generated_at, '2026-06-18T13:00:00.000Z');
   assert.equal(manifest.workspace.language, 'zh');
   assert.equal(manifest.workspace.agents, 'AGENTS.md');
-  assert.equal(manifest.workspace.claude, 'CLAUDE.md');
   assert.match(manifest.workspace.description, /机器可读目录/);
   assert.equal(manifest.game.node_id, game.id);
   assert.equal(manifest.game.project_stage_label, '测试');
@@ -447,7 +447,6 @@ try {
 
   const generatedAgentFiles = [
     join(tempDir, 'AGENTS.md'),
-    join(tempDir, 'CLAUDE.md'),
     join(tempDir, 'manifest.yml'),
     join(gameDirectory, 'INDEX.md'),
     join(gameDirectory, 'game.md'),

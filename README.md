@@ -24,7 +24,7 @@ Game Context Manager（游戏上下文管理器）是一个本地优先的桌面
 - 图片库在左侧树中与模块节点同级，支持上传、拖拽、粘贴和详情查看。
 - API、语言、退出账号只在设置里管理。
 - 不再提供“启用 AI 辅助”复选框；AI 默认可用，但 API 未配置或连接失败时提示不可用。
-- `AGENTS.md` / `CLAUDE.md` 会在创建主节点时自动导出，也可由用户主动重新导出。
+- `AGENTS.md` 会在创建主节点时自动导出，也可由用户主动重新导出；若已有内容不同的同名文件，应用会提示用户先手动删除，避免误覆盖。
 - `manifest.yml`、`INDEX.md`、`image_catalog.yml` 会在保存或删除节点、文件、图片后自动生成或更新，也可由用户主动重新导出。
 
 ## 目标工作区结构
@@ -33,7 +33,6 @@ Game Context Manager（游戏上下文管理器）是一个本地优先的桌面
 <selected-folder>/
   .game-context-manager.yml
   AGENTS.md
-  CLAUDE.md
   manifest.yml
 
   <game_folder_name>/                 # 以“主节点名称 + 游戏上下文”清洗后生成，例如：使命防线游戏上下文
@@ -50,7 +49,7 @@ Game Context Manager（游戏上下文管理器）是一个本地优先的桌面
           <content_id>.md
 ```
 
-`AGENTS.md`、`CLAUDE.md` 会在创建主节点时自动导出，也可手动重新导出；`manifest.yml`、`INDEX.md` 和 `image_catalog.yml` 会在保存或删除节点、文件、图片后自动导出，也可手动重新导出。节点 Markdown 在保存节点时写入。
+`AGENTS.md` 会在创建主节点时自动导出，也可手动重新导出；若同路径已有不同内容，应用会阻止覆盖并要求用户手动删除。`manifest.yml`、`INDEX.md` 和 `image_catalog.yml` 会在保存或删除节点、文件、图片后自动导出，也可手动重新导出。节点 Markdown 在保存节点时写入。
 
 ## 产品边界
 
@@ -116,7 +115,7 @@ C:\Users\JT\AppData\Roaming\game-context-manager\game-context-manager.sqlite3
 
 外部 Agent 不应依赖 GUI。目标读取顺序：
 
-1. 读取工作区根目录的 `AGENTS.md` 或 `CLAUDE.md`。
+1. 读取工作区根目录的 `AGENTS.md`。
 2. 读取 `manifest.yml`。
 3. 读取主节点文件夹中的 `game.md`。
 4. 根据 `INDEX.md` 选择相关模块和内容文件，并使用其中的结构化字段地图判断哪些字段最相关。
@@ -131,7 +130,6 @@ C:\Users\JT\AppData\Roaming\game-context-manager\game-context-manager.sqlite3
 examples/sample-workspace/
   .game-context-manager.yml
   AGENTS.md
-  CLAUDE.md
   manifest.yml
   starfall_workshop/
     game.md
